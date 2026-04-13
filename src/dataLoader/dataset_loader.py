@@ -119,7 +119,7 @@ class DatasetLoader:
         return self.missing_Y
 
 
-def load_dataloader_by_name(dataset_name: str, main_dir: str = 'Master_thesis_generate_samples',
+def load_dataloader_by_name(dataset_name: str, main_dir: str = 'src',
                             data_subdir: str = 'datasets',y_seperated:bool=True, **kwargs) -> DatasetLoader:
     """
     Find and load a dataset by name from main_dir/data_subdir/dataset_name/dataset_name.csv (or .data).

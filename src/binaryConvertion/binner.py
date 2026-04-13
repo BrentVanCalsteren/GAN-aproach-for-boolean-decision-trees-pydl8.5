@@ -2,7 +2,7 @@ from typing import Tuple, List, Union
 
 from exceptiongroup import catch
 
-from clustering1D.divisive_clustering_1D import DivisiveCluster
+from src.clustering1D.divisive_clustering_1D import DivisiveCluster
 import numpy as np
 import math
 

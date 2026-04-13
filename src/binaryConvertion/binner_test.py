@@ -1,7 +1,7 @@
 import unittest
 import numpy as np
 import binner
-import dataLoader.dataset_loader as loader
+import src.dataLoader.dataset_loader as loader
 
 
 class TestBinConvertion(unittest.TestCase):

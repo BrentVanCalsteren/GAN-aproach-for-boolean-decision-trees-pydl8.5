@@ -76,7 +76,7 @@ disc = DL85Predictor(
     min_sup=5,
     error_function=error,
     leaf_value_function=leaf_value,
-    time_limit=300)
+    time_limit=30)
 
 disc.fit(dl_x)
 
@@ -87,28 +87,17 @@ print(f"avg scores real data:{test_scores.mean()}")
 #---------------------------------------------------
 #as generator -> starting from completely random inputs
 #-----------------------------------------------------
-
+#first generating with just de Discriminator
 def sample_from_discriminator(disc, n_samples, rng=np.random):
-    """Generate new samples from the learned leaf distributions."""
-    # Get all leaves (by predicting on a dummy point? Better: we need access to leaf parameters)
-    # Unfortunately disc.leaf_values_ is not directly exposed; we can recompute by passing all data.
-    # Alternative: traverse the tree and collect leaf nodes.
-
-    # For simplicity, we can use the training data to get leaf assignments and parameters.
-    leaf_ids = disc.predict(scaled_x)  # assigns each training sample to a leaf
-    unique_leaves, counts = np.unique(leaf_ids, return_counts=True)
+    leafs = disc.predict(dl_x)
 
     samples = []
     for _ in range(n_samples):
-        # Choose a leaf proportional to its size
-        leaf = rng.choice(unique_leaves, p=counts / counts.sum())
-        # Get parameters (we stored mu, std in leaf_value)
-        params = leaf  # leaf is the dict returned by leaf_value
+        leaf = rng.choice(leafs)
+        params = leaf
         mu = params['mu']
         std = params['std']
-        # Sample from per-feature Gaussian
         new_x = rng.normal(mu, std)
-        # Clip to valid range [0,1] if needed
         new_x = np.clip(new_x, 0, 1)
         samples.append(new_x)
     return np.array(samples)

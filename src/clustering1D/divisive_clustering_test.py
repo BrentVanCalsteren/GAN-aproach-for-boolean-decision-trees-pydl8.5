@@ -1,7 +1,7 @@
 import unittest
 import random
 from divisive_clustering_1D import DivisiveCluster
-import dataLoader.dataset_loader as loader
+import src.dataLoader.dataset_loader as loader
 
 
 class TestDivisiveCluster(unittest.TestCase):

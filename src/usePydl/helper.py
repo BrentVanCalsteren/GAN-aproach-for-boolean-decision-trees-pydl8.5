@@ -3,8 +3,8 @@ import random
 
 import numpy as np
 
-import dataLoader.dataset_loader as loader
-import binaryConvertion.binner as binner
+import src.dataLoader.dataset_loader as loader
+import src.binaryConvertion.binner as binner
 from sklearn.model_selection import train_test_split
 
 class VizTree:
