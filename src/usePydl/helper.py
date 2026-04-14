@@ -1,11 +1,6 @@
 from typing import Dict, Any, Optional, List
-import random
-
 import numpy as np
-
-import src.dataLoader.dataset_loader as loader
 import src.binaryConvertion.binner as binner
-from sklearn.model_selection import train_test_split
 
 class VizTree:
     """
@@ -112,20 +107,6 @@ class VizTree:
     def __str__(self) -> str:
         return self.get_tree_string()
 
-
-def prep_data_for_pydl_no_sep(dataset_name:str='bank',max_bool_lenght=12):
-    dataset = loader.load_dataloader_by_name(dataset_name,y_seperated=False)
-    complete_x = dataset.get_x_complete()
-    missing_x = dataset.get_x_missing()
-    scaled_x_T = loader.standardize_2d_array(complete_x.T)
-    bin_string_x, bin_length_x,clusters = binner.bin_convertion_2d(scaled_x_T,max_bins=max_bool_lenght)
-    dl_x = np.array([binner.flatten_binary_strings(row) for row in bin_string_x.T])
-    scaled_x = scaled_x_T.T
-    return complete_x,missing_x,dl_x,scaled_x,bin_length_x,clusters
-
-def randomize_data(X, Y):
-    X_train, X_test, y_train, y_test = train_test_split(X, Y, test_size=0.2, random_state=random.randint(1, 100))
-    return X_train, X_test, y_train, y_test
 
 def convert_num_specific_bin_length(num_data_T, clusters):
     bin_data = []
