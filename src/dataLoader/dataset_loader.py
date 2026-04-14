@@ -23,7 +23,7 @@ class DatasetLoader:
         self.missing_X: Optional[np.ndarray] = None
         self.missing_Y: Optional[np.ndarray] = None
 
-    def load(self, encoding: str = 'utf-8') -> None:
+    def load(self, encoding: str = 'utf-8',y_ind:int = -1) -> None:
         """
         Load the CSV file. Assumes header is present and delimiter is auto-detected.
         The last column is treated as target (Y), all others as features (X).
@@ -47,8 +47,8 @@ class DatasetLoader:
             if data_array.shape[1] < 2:
                 raise ValueError("Dataset must have at least two columns (features + target).")
             if self.y_seperated:
-                X_raw = data_array[:, :-1]
-                Y_raw = data_array[:, -1]
+                X_raw = np.delete(data_array, y_ind, axis=1)
+                Y_raw = data_array[:, y_ind]
             else:
                 X_raw = data_array
                 Y_raw = None
