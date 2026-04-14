@@ -1,5 +1,4 @@
 import random
-
 import numpy as np
 from pydl85 import DL85Predictor
 from pyexpat import features
@@ -17,12 +16,12 @@ def gen_dl85predictor(data,error_fun,leaf_fun,max_depth,min_sup,time):
 
 def try_make_discriminator():
     max_depth = 2
-    max_bin_len_feat = 5
-    num_features = 5
+    max_bin_len_feat = 10
+    num_features = 4
     data = dataset("iris", y_seperated=False,max_bin_len_feat=max_bin_len_feat,num_features=num_features)
     error_fun = prob_norm_error(data.x)
     leaf_val = leaf_value(data.x)
-    predictor = gen_dl85predictor(data,error_fun,leaf_val,max_depth,2,30)
+    predictor = gen_dl85predictor(data,error_fun,leaf_val,max_depth,2,300)
     leafs = helper.get_all_leaves(predictor.tree_)
     print(leafs)
     helper.VizTree(predictor.tree_)
@@ -35,16 +34,14 @@ def try_make_discriminator():
 def prob_norm_error(samples):
     def error(tids):
         sub_samples = np.array(samples[list(tids)])
-        total_prob = 0
-        for i in range(len(sub_samples)):
-            sample = sub_samples[i]
-            samples_without_sample = np.delete(sub_samples, i, axis=0)
-            features = samples_without_sample.T
-            distributions = chance.get_distr_for_features(features, "norm")
-            prob_sample = chance.calc_chance_for_single_sample(distributions,sample)
-            total_prob += prob_sample
-        if len(sub_samples) > 1: total_prob /= len(sub_samples)
-        return 1 - total_prob
+        n = len(sub_samples)
+        if n <= 1:
+            return 0.0
+        features = sub_samples.T
+        distributions = chance.get_distr_for_features(features, "norm")
+        #this is not completly correct since you should remove the sample everytime out the distr
+        log_likelyhood = chance.calc_likelihood_scores_samples(distributions,samples)
+        return log_likelyhood
     return error
 
 ##########################"
