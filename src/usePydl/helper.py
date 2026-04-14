@@ -133,3 +133,14 @@ def convert_num_specific_bin_length(num_data_T, clusters):
         bin_data.append(binner.gen_one_hot_string(num_data_T[i], clusters[i]))
     print(bin_data)
     return np.array([binner.flatten_binary_strings(row) for row in np.array(bin_data).T])
+
+def get_all_leaves(tree):
+    leaves = []
+    def recurse(node):
+        if "value" in node:
+            leaves.append(node)
+        else:
+            recurse(node["left"])
+            recurse(node["right"])
+    recurse(tree)
+    return leaves

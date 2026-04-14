@@ -2,6 +2,7 @@ import numpy as np
 from pydl85 import DL85Classifier
 import src.dataLoader.dataset_loader as loader
 import src.binaryConvertion.binner as binner
+import unittest
 import helper
 from sklearn.metrics import accuracy_score, classification_report
 
@@ -13,7 +14,9 @@ class dataset:
         x_complete = dataset.get_x_complete()
         x_missing = dataset.get_x_missing()
         y_complete = dataset.get_y_complete()
-        self.y = loader.standardize_to_num(y_complete)
+        print(f"y normaly: {y_complete}")
+        self.y = loader.standardize_to_num(y_complete).astype(np.int32)
+        print(f"y standardized: {self.y}")
         y_missing = dataset.get_y_missing()
         x_scaled_T = loader.standardize_2d_array(x_complete.T)
         x_scaled_T_clamped = x_scaled_T[:num_features,:] #schrinking the number of features to work with
@@ -23,25 +26,56 @@ class dataset:
         self.x = x_scaled
 
 
-def classify_with_default_error(dataset,max_depth,min_sup,time):
+def classify_with_default_error(data,max_depth,min_sup,time):
     clasfi = DL85Classifier(max_depth=max_depth,min_sup=min_sup, time_limit=time)
-    clasfi.fit(dataset.x_bin, dataset.y)
+    clasfi.fit(data.x_bin, data.y)
     return clasfi
 
 
-def classify_with_custom_error(dataset,error_fun,max_depth,min_sup,time):
-    clasfi = DL85Classifier(error_function=error_fun,max_depth=max_depth,min_sup=min_sup, time_limit=time)
-    clasfi.fit(dataset.x_bin, dataset.y)
+def classify_with_custom_error(data,error_fun,max_depth,min_sup,time):
+    clasfi = DL85Classifier(fast_error_function=error_fun,max_depth=max_depth,min_sup=min_sup, time_limit=time)
+    clasfi.fit(data.x_bin, data.y)
     return clasfi
 
 
 ####################################
 ##### error functions #############
 ###################################
-
-def simulate_classify_error(y):
+def sim_error(y):
     def error(tids):
-        classes, supports = np.unique(y.take(list(tids)), return_counts=True)
+        supports = list(tids)
         maxindex = np.argmax(supports)
-        return sum(supports) - supports[maxindex]
+        return sum(supports) - supports[maxindex], maxindex
     return error
+
+##########################
+####### tests ############
+#########################
+class TestClassify(unittest.TestCase):
+    def test_classify_standard(self):
+        max_depth = 4
+        max_bin_len_feat = 2
+        num_features = 1
+        data = dataset('iris',num_features=num_features,max_bin_len_feat=max_bin_len_feat,y_seperated=True)
+        classifier = classify_with_default_error(data,max_depth=1,min_sup=1,time=30)
+        leafs = helper.get_all_leaves(classifier.tree_)
+        self.assertLessEqual(len(leafs), 2**max_depth,
+        f'number of leaves just be less then{2**max_depth}, is {len(leafs)}')
+        self.assertLessEqual(len(leafs), 2**(max_bin_len_feat*num_features),
+        f'number of leaves just be less then{2**max_depth}, is {len(leafs)}')
+
+    def test_classify_simulate_classify_error(self):
+        max_depth = 4
+        max_bin_len_feat = 2
+        num_features = 1
+        data = dataset('iris',num_features=num_features,max_bin_len_feat=max_bin_len_feat,y_seperated=True)
+        error = sim_error(data.y)
+        classifier = classify_with_custom_error(data,error,max_depth,min_sup=1,time=30)
+        leafs = helper.get_all_leaves(classifier.tree_)
+        self.assertLessEqual(len(leafs), 2**max_depth,
+        f'number of leaves just be less then{2**max_depth}, is {len(leafs)}')
+        self.assertLessEqual(len(leafs), 2**(max_bin_len_feat*num_features),
+        f'number of leaves just be less then{2**max_depth}, is {len(leafs)}')
+
+if __name__ == "__main__":
+    unittest.main()
