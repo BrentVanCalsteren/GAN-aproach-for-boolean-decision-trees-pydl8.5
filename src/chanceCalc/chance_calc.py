@@ -11,10 +11,12 @@ def get_distr_for_features(features,distr_fun:str="norm"):
 def calc_likelihood_scores_samples(distributions, samples):
     total_log_likelihood = 0.0
     features = samples.T
+    likes_exp = []
     for i, distr_fun in enumerate(distributions):
         log_likelihoods = distr_fun.score_samples(features[i].reshape(-1, 1)) #returns log_lik
-        total_log_likelihood += np.sum(log_likelihoods)
-    return total_log_likelihood
+        likes_exp.append(np.exp(log_likelihoods - np.max(log_likelihoods)))
+    samples_prob_matrix = np.array(likes_exp).T
+    return samples_prob_matrix
 
 
 

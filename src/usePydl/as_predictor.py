@@ -14,19 +14,6 @@ def gen_dl85predictor(data,error_fun,leaf_fun,max_depth,min_sup,time):
     return predi
 
 
-def try_make_discriminator():
-    max_depth = 2
-    max_bin_len_feat = 10
-    num_features = 4
-    data = dataset("iris", y_seperated=False,max_bin_len_feat=max_bin_len_feat,num_features=num_features)
-    error_fun = prob_norm_error(data.x)
-    leaf_val = leaf_value(data.x)
-    predictor = gen_dl85predictor(data,error_fun,leaf_val,max_depth,2,300)
-    leafs = helper.get_all_leaves(predictor.tree_)
-    print(leafs)
-    helper.VizTree(predictor.tree_)
-
-
 ###############################
 #########error functions############
 ###############################
@@ -36,12 +23,15 @@ def prob_norm_error(samples):
         sub_samples = np.array(samples[list(tids)])
         n = len(sub_samples)
         if n <= 1:
-            return 0.0
+            return 1
         features = sub_samples.T
         distributions = chance.get_distr_for_features(features, "norm")
         #this is not completly correct since you should remove the sample everytime out the distr
-        log_likelyhood = chance.calc_likelihood_scores_samples(distributions,samples)
-        return log_likelyhood
+        samples_prob_matrix = chance.calc_likelihood_scores_samples(distributions,samples)
+        tot_prob = 0
+        for sample in samples_prob_matrix:
+            tot_prob += np.min(sample)
+        return 1 - (tot_prob / n)
     return error
 
 ##########################"
@@ -53,6 +43,23 @@ def leaf_value(samples):
         distributions = chance.get_distr_for_features(features, "norm")
         return distributions
     return value
+
+def try_make_discriminator():
+    max_depth = 2
+    max_bin_len_feat = 10
+    num_features = 4
+    data = dataset("iris", y_seperated=False,max_bin_len_feat=max_bin_len_feat,num_features=num_features)
+    error_fun = prob_norm_error(data.x)
+    leaf_val = leaf_value(data.x)
+    predictor = gen_dl85predictor(data,error_fun,leaf_val,max_depth,2,300)
+    leafs = helper.get_all_leaves(predictor.tree_)
+    confidence_matrix = []
+    for leaf in leafs:
+        confidence_matrix.append(leaf['value'])
+    generate_new_data(confidence_matrix, 100,num_features)
+
+def generate_new_data(confidence_matrix, n, num_features):
+    raise NotImplementedError
 
 if __name__ == "__main__":
     try_make_discriminator()
