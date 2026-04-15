@@ -22,9 +22,9 @@ def classify_with_custom_error(data,error_fun,max_depth,min_sup,time):
 ###################################
 def sim_error(y):
     def error(tids):
-        supports = list(tids)
-        maxindex = np.argmax(supports)
-        return sum(supports) - supports[maxindex], maxindex
+        supports = list(tids) # is a list of all counts
+        maxindex = np.argmax(supports) #take label that is most promenent
+        return sum(supports) - supports[maxindex], maxindex #returns how many missclassified
     return error
 
 ##########################
