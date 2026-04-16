@@ -42,3 +42,4 @@ def calc_normalised_confidence_gaussian(distributions, samples):
 #SAME 3 FUNCTIONS FOR OTHER DISTRIBUTION TYPES
 #########################
 
+#todo

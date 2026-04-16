@@ -146,7 +146,7 @@ def load_dataloader_by_name(dataset_name: str, main_dir: str = 'src',
 
 def standardize_to_num(arr):
     if arr is None:
-        return np.asarray([])
+        return None
     np_arr = np.asarray(arr)
     if np.issubdtype(np_arr.dtype, np.number):
         print("Already numeric.")

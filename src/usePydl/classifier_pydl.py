@@ -9,7 +9,7 @@ from error_fun import sim_error
 #clasifiers
 ##################
 
-def classify_with_default_error(x_bin,y,max_depth,min_sup,time):
+def classify_with_default_error(x_bin,y,max_depth=3,min_sup=2,time=100):
     clasfi = DL85Classifier(max_depth=max_depth,min_sup=min_sup, time_limit=time)
     clasfi.fit(x_bin, y)
     return clasfi
@@ -17,7 +17,7 @@ def classify_with_default_error(x_bin,y,max_depth,min_sup,time):
 
 def classify_with_custom_error(x_bin,y,error_fun,max_depth,min_sup,time):
     clasfi = DL85Classifier(fast_error_function=error_fun,max_depth=max_depth,min_sup=min_sup, time_limit=time)
-    clasfi.fit(x_bin,y)
+    clasfi.fit(x_bin, y)
     return clasfi
 
 
