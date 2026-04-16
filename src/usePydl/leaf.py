@@ -1,12 +1,30 @@
-from typing import Dict, Any, Optional, List
 import numpy as np
-import src.binaryConvertion.binner as binner
+import src.chanceCalc.prob_estimator as probEstimator
+from typing import Dict, Any, Optional, List
+##########################
+#######leaf vals predictor
+#########################
+def leaf_val_gaussian_distributions(samples):
+    def value(tids):
+        features = np.array(samples[list(tids)]).T
+        print(features.shape)
+        distributions = probEstimator.get_gaussian_distributions(features)
+        return distributions
+    return value
+
+
+def get_all_leaves(tree):
+    leaves = []
+    def recurse(node):
+        if "value" in node:
+            leaves.append(node)
+        else:
+            recurse(node["left"])
+            recurse(node["right"])
+    recurse(tree)
+    return leaves
 
 class VizTree:
-    """
-    Console-based visualizer based on decision trees representation in pydl8.5 .tree_ obj.
-    """
-
     def __init__(self, tree_dict: Optional[Dict[str, Any]] = None):
         self.tree_dict = tree_dict
         self.print_tree()
@@ -16,8 +34,7 @@ class VizTree:
             print("No tree to display.")
             return
 
-        lines = self._build_tree_lines(self.tree_dict, max_depth=max_depth,
-                                       feature_names=show_feature_names)
+        lines = self._build_tree_lines(self.tree_dict, max_depth=max_depth,feature_names=show_feature_names)
         for line in lines:
             print(line)
 
@@ -108,20 +125,4 @@ class VizTree:
         return self.get_tree_string()
 
 
-def convert_num_specific_bin_length(num_data_T, clusters):
-    bin_data = []
-    for i in range(len(num_data_T)):
-        bin_data.append(binner.gen_one_hot_string(num_data_T[i], clusters[i]))
-    print(bin_data)
-    return np.array([binner.flatten_binary_strings(row) for row in np.array(bin_data).T])
 
-def get_all_leaves(tree):
-    leaves = []
-    def recurse(node):
-        if "value" in node:
-            leaves.append(node)
-        else:
-            recurse(node["left"])
-            recurse(node["right"])
-    recurse(tree)
-    return leaves

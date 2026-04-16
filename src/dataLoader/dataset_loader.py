@@ -158,17 +158,19 @@ def standardize_to_num(arr):
     except (ValueError, TypeError):
         pass
 
+    return scale_array(value_to_index_array(np_arr))
+
+def value_to_index_array(np_arr):
     unique_values = np.unique(np_arr)
-    print(f"Unique Y's: {unique_values}")
-    value_to_idx = {val: i for i, val in enumerate(unique_values)}
-    indices = np.array([value_to_idx[val] for val in np_arr])
-    return scale_array(indices)
+    print(f"Unique vals: {unique_values}")
+    value_to_idx = {val: idx for idx, val in enumerate(unique_values)}  # Build mapping
+    return np.array([value_to_idx[val] for val in np_arr])
 
 
 def standardize_2d_array(array):
     return np.array([standardize_to_num(x) for x in array])
 
-def scale_array(num_array):
+def scale_array(num_array,shifted=True):
     arr = np.asarray(num_array, dtype=float)
     min_val = arr.min()
     max_val = arr.max()
@@ -176,5 +178,6 @@ def scale_array(num_array):
     # Avoid division by zero when all values are equal
     if max_val - min_val == 0:
         return np.zeros_like(arr)
-
+    if shifted:
+        return np.array((arr - min_val) / (max_val - min_val)+1)
     return np.array((arr - min_val) / (max_val - min_val))
