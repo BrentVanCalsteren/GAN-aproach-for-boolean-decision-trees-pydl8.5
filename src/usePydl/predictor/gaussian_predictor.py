@@ -14,6 +14,7 @@ class GaussianPredictor(Predictor):
             min_sup=min_sup,
             time=time
         )
+        self.generate_tree()
 
     def generate_new_data(self,conf_trash=0.8,number_of_new_samples=100):
         #todo: improve

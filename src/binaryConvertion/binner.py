@@ -24,52 +24,54 @@ def bin_convertion(n_array, max_bins=16) -> Tuple[np.ndarray, List]:
     return gen_one_hot_string(array, clusters), clusters
 
 def gen_one_hot_string(array, clusters):
-    indices = [0] * len(array)
+    #clusters is 2d array [[lb,rb], [lb,rb], [lb,rb],...]
+    #it can happen that a value in array falls between cluster (when generating data)
+    #every value should be mapped to its closest cluster
+    array = np.asarray(array)
     n_bins = len(clusters)
-    for i in range(len(array)):
-        converted = False
-        closest_val = 1
-        for cluster_idx, cluster_values in enumerate(clusters):
-            if isinstance(cluster_values, np.float64):
-                min_dif = abs(array[i] - cluster_values)
-            elif isinstance(cluster_values, list):
-                left, right = cluster_values
-                min_dif = min(abs(array[i] - left),abs(array[i] - right))
+    indices = np.zeros(len(array), dtype=int)
+
+    for i, val in enumerate(array):
+        best_dist = np.inf
+        best_idx = -1
+
+        for idx, cluster in enumerate(clusters):
+            if np.isscalar(cluster):
+                dist = abs(val - cluster)
+            elif isinstance(cluster, (list, tuple, np.ndarray)) and len(cluster) == 2:
+                left, right = cluster
+                dist = min(abs(val - left), abs(val - right))
             else:
-                raise (ValueError, print(cluster_values))
-            if min_dif < closest_val:
-                closest_val = min_dif
-                indices[i] = cluster_idx
-                converted = True
-        if not converted:
-            raise ValueError(f'Problem: not converted index:{i}')
+                raise TypeError(f"Unsupported cluster format: {cluster}")
+
+            if dist < best_dist:
+                best_dist = dist
+                best_idx = idx
+
+        if best_idx == -1:
+            raise ValueError(f"Could not assign value {val} at index {i} to any cluster.")
+        indices[i] = best_idx
 
     onehot_strings = []
-    try:
-        for idx in indices:
-            arr = ['0'] * n_bins
-            arr[idx] = '1'
-            onehot_strings.append(''.join(arr))
-    except IndexError:
-        print("something wrong")
-
-
+    for idx in indices:
+        arr = ['0'] * n_bins
+        arr[idx] = '1'
+        onehot_strings.append(''.join(arr))
     return np.array(onehot_strings)
 
 
 
 
-def bin_convertion_2d(array_2d, max_bins=16) -> Tuple[np.ndarray, np.ndarray, List]:
+def bin_convertion_2d(array_2d, max_bins=16) -> Tuple[np.ndarray, List]:
     """uses bin_convertion function one row at a time for 2d_array"""
     processed_features = []
-    bin_length = []
     clusters = []
     for feature_row in array_2d:
         onehot_strings, cluster = bin_convertion(feature_row, max_bins=max_bins)
         processed_features.append(onehot_strings)
         clusters.append(cluster)
-        bin_length.append(len(onehot_strings[0]) if onehot_strings[0] else 0)
-    return np.array(processed_features), np.array(bin_length), clusters
+    flattend_bin = np.array([flatten_binary_strings(row) for row in np.array(processed_features).T])
+    return flattend_bin, clusters
 
 def flatten_binary_strings(bin_strings):
     combined = ''.join(bin_strings)

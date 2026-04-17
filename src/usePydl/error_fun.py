@@ -26,13 +26,14 @@ def prob_norm_error2(samples):
     def error(tids):
         sub_samples = samples[list(tids)]
         if len(sub_samples) <= 1:
-            return 0.0
+            return np.inf
         features = sub_samples.T
-        total_neg_log_likelihood = 0.0
+        total_estimated_error = 0.0
         for feat_array in features:
             gm = probEstimator.gaussian_distr(feat_array)
-            total_neg_log_likelihood -= probEstimator.calc_normalised_confidence_gaussian(np.array([gm]),np.array([feat_array]))[0]
-        return total_neg_log_likelihood
+            total_estimated_error += probEstimator.get_error(np.array([gm]),np.array([feat_array]))[0]
+        #print(total_estimated_error)
+        return total_estimated_error
     return error
 
 ##########################

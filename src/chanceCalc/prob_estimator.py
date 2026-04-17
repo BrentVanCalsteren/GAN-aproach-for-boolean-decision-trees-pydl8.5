@@ -38,6 +38,11 @@ def calc_normalised_confidence_gaussian(distributions, samples):
     # Normalise
     confidence = np.exp(log_likelihoods - log_likelihoods_max)
     return confidence
+
+def get_error(distributions, samples):
+    error = 1 - calc_normalised_confidence_gaussian(distributions, samples)
+    return error
+
 ##################################################################
 #SAME 3 FUNCTIONS FOR OTHER DISTRIBUTION TYPES
 #########################
