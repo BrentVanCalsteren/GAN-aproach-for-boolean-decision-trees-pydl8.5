@@ -2,7 +2,7 @@ from typing import List
 
 from src.usePydl.predictor.predictor_obj import Predictor
 from src.usePydl.leaf import leaf_val_gaussian_distributions
-from src.usePydl.error_fun import prob_norm_error2
+from src.usePydl.error_fun import gaussian_error
 from sklearn.mixture import GaussianMixture
 import src.chanceCalc.prob_estimator as probEstimator
 import numpy as np
@@ -12,7 +12,7 @@ class GaussianPredictor(Predictor):
         self.samples = samples
         super().__init__(
             samples_bin=samples_bin,
-            error_fun=prob_norm_error2(samples),
+            error_fun=gaussian_error(samples),
             leaf_val=leaf_val_gaussian_distributions(samples),
             max_depth=max_depth,
             min_sup=min_sup,

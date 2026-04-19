@@ -1,38 +1,51 @@
 from src.dataLoader.Dataset import *
-import src.usePydl.leaf as l
-import predictor.gaussian_predictor as gp
+from sklearn.model_selection import train_test_split
+import random
 import classifier_pydl
 from sklearn.metrics import accuracy_score, classification_report
 
 def compare_data_with_pydl_classifier():
-    data_set = dataset(dataset_name='iris')
+    data_set = dataset(dataset_name='iris',bin_length=-1)
     data_level_0 = data_set.data
-    data_level_0.load_predictor('gaussian')
-    data_level_0.generate_more_data()
-    """
-    data.add_gen_data(gen_data=new_samples,y_index=-1)
-    x_train,x_test,y_train,y_test = data_obj.split_train_test(data.x_bin,data.y,test_size=0.2)
+    x_bin = data_level_0.x_bin[:,:-data_level_0.feature_bin_len[-1]]
+    y = data_level_0.x[:,-1]
+    X_train, X_test, y_train, y_test = split_train_test(x_bin, value_to_index(y), test_size=0.2)
+    classify_test_pydl(X_train, X_test, y_train, y_test)
+    data_level_0.load_predictor('gaussian',time=600)
+    data_level_0.generate_more_data(n=500,conf=0.8)
+    x_gen_bin = data_level_0.x_gen_bin[:,:-data_level_0.feature_bin_len[-1]]
+    y_gen = _map_array_to_closest_val(y,data_level_0.x_gen[:,-1])
+    classify_test_pydl(x_gen_bin,x_bin,value_to_index(y_gen),value_to_index(y))
+
+def classify_test_pydl(x_train, x_test, y_train, y_test):
     clasfi = classifier_pydl.classify_with_default_error(
-        x_bin=x_train,y=y_train,max_depth=4,min_sup=1,time=300)
+        x_bin=x_train, y=y_train, max_depth=5, min_sup=1, time=300)
     y_pred_test = clasfi.predict(x_test)
     accuracy = accuracy_score(y_test, y_pred_test)
-    print(f"Accuracy for real data only: {accuracy:.4f}")
+    print(f"Accuracy: {accuracy:.4f}")
     print("\nClassification Report:")
     print(classification_report(y_test, y_pred_test))
-    ########################################
-    #NOW LETS TRAIN ON compleetly FAKE DATA
-    #########################################
-    clasfi = classifier_pydl.classify_with_default_error(
-        x_bin=data.x_gen_bin,y=data.y_gen,max_depth=4,min_sup=1,time=300)
-    tree = clasfi.tree_
-    l.VizTree(tree)
-    y_pred_fake = clasfi.predict(data.x_bin)
-    accuracy = accuracy_score(data.y, y_pred_fake)
-    print(f"Accuracy for training on fake data alone: {accuracy:.4f}")
-    print("\nClassification Report:")
-    print(classification_report(data.y, y_pred_fake))
-    """
 
+def value_to_index(array):
+    unique_values = np.unique(array)
+    indeces = np.zeros(array.shape)
+    for i, val in enumerate(unique_values):
+        indeces[array==val] = i
+    return indeces
+
+
+def _map_array_to_closest_val(vals, array):
+    unique_values = np.unique(vals)
+    y_mapped = np.zeros(array.shape)
+    for i, y in enumerate(array):
+        y_mapped[i] = np.argsort(np.abs(unique_values - y))[0]
+    return y_mapped
+
+
+def split_train_test(X, Y, test_size=0.2):
+    X_train, X_test, y_train, y_test = train_test_split(X, Y, test_size=test_size,
+                                                        random_state=random.randint(1, 100))
+    return X_train, X_test, y_train, y_test
 
 
 

@@ -1,14 +1,11 @@
 import numpy as np
-
 import src.binaryConvertion.binner as binner
 from src.usePydl.predictor.gaussian_predictor import GaussianPredictor
-from sklearn.model_selection import train_test_split
-import random
-
 
 class Data:
     x = None
     x_bin = None
+    feature_bin_len = None
     feature_clusters = None
 
     x_gen = None
@@ -24,7 +21,8 @@ class Data:
             bin_length = calculate_bin_length(feat_scaled)
             print(f'bin_length is not given, choosing own lenght:{bin_length}')
         self.x = feat_scaled.T
-        self.x_bin, self.feature_clusters = binner.bin_convertion_2d(feat_scaled, max_bins=bin_length)
+        self.x_bin, self.feature_bin_len,self.feature_clusters = binner.bin_convertion_2d(feat_scaled, max_bins=bin_length)
+        self.shuffle_data()
 
     def get_data_at_depth(self,depth=-1):
         if depth == -1:
@@ -99,15 +97,4 @@ def convert_feats_specific_bin_length(feats, clusters):
     #print(bin_data)
     return np.array([binner.flatten_binary_strings(row) for row in np.array(bin_data).T])
 
-def _map_gen_feature_to_closest_real(feature_real,feature_gen):
-        unique_values = np.unique(feature_real)
-        y_mapped = np.zeros(feature_gen.shape)
-        for i,y in enumerate(feature_gen):
-            y_mapped[i] = np.argsort(np.abs(unique_values-y))[0]
-        return y_mapped
-
-def split_train_test(X, Y, test_size=0.2):
-    X_train, X_test, y_train, y_test = train_test_split(X, Y, test_size=test_size,
-                                                        random_state=random.randint(1, 100))
-    return X_train, X_test, y_train, y_test
 

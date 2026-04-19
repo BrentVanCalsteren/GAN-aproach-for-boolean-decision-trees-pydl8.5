@@ -62,16 +62,18 @@ def gen_one_hot_string(array, clusters):
 
 
 
-def bin_convertion_2d(array_2d, max_bins=16) -> Tuple[np.ndarray, List]:
+def bin_convertion_2d(array_2d, max_bins=16) -> Tuple[np.ndarray, List,List]:
     """uses bin_convertion function one row at a time for 2d_array"""
     processed_features = []
     clusters = []
+    feat_bin_len = []
     for feature_row in array_2d:
         onehot_strings, cluster = bin_convertion(feature_row, max_bins=max_bins)
         processed_features.append(onehot_strings)
+        feat_bin_len.append(len(onehot_strings[0]))
         clusters.append(cluster)
     flattend_bin = np.array([flatten_binary_strings(row) for row in np.array(processed_features).T])
-    return flattend_bin, clusters
+    return flattend_bin, feat_bin_len,clusters
 
 def flatten_binary_strings(bin_strings):
     combined = ''.join(bin_strings)
