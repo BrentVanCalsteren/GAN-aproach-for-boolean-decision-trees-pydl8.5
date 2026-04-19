@@ -9,7 +9,7 @@ import random
 class Data:
     x = None
     x_bin = None
-    x_clusters = None
+    feature_clusters = None
 
     x_gen = None
     x_gen_bin = None
@@ -24,7 +24,7 @@ class Data:
             bin_length = calculate_bin_length(feat_scaled)
             print(f'bin_length is not given, choosing own lenght:{bin_length}')
         self.x = feat_scaled.T
-        self.x_bin, self.x_clusters = binner.bin_convertion_2d(feat_scaled,max_bins=bin_length)
+        self.x_bin, self.feature_clusters = binner.bin_convertion_2d(feat_scaled, max_bins=bin_length)
 
     def get_data_at_depth(self,depth=-1):
         if depth == -1:
@@ -57,14 +57,21 @@ class Data:
         self.x = self.x[p]
         self.x_bin = self.x_bin[p]
 
-    def load_predictor(self,predictor_name,max_depth=3,min_sup=1,time=100):
+    def load_predictor(self,predictor_name,max_depth=3,min_sup=1,time=30):
         if predictor_name == "gaussian":
             self.predictor = GaussianPredictor(self.x,self.x_bin,max_depth=max_depth,min_sup=min_sup,time=time)
 
-    def generate_more_data(self,n=100,conf=0.8):
+    def generate_more_data(self,n=200,conf=0.8):
        if self.predictor is None:
            raise Exception("predictor cannot be None")
-       else: self.predictor.generate_new_data(n_new_samples=n,conf_tresh=conf)
+       else:
+            self.x_gen = self.predictor.generate_new_data(n_new_samples=n,conf_tresh=conf)
+            features = self.x_gen.T
+            one_hots = []
+            for i, feature in enumerate(features):
+                one_hots.append(binner.gen_one_hot_string(feature, self.feature_clusters[i]))
+            self.x_gen_bin = np.array([binner.flatten_binary_strings(row) for row in np.array(one_hots).T])
+
 
  #HELPERs
 def get_min_feat_index(features):
@@ -91,6 +98,13 @@ def convert_feats_specific_bin_length(feats, clusters):
         bin_data.append(binner.gen_one_hot_string(feats[i], clusters[i]))
     #print(bin_data)
     return np.array([binner.flatten_binary_strings(row) for row in np.array(bin_data).T])
+
+def _map_gen_feature_to_closest_real(feature_real,feature_gen):
+        unique_values = np.unique(feature_real)
+        y_mapped = np.zeros(feature_gen.shape)
+        for i,y in enumerate(feature_gen):
+            y_mapped[i] = np.argsort(np.abs(unique_values-y))[0]
+        return y_mapped
 
 def split_train_test(X, Y, test_size=0.2):
     X_train, X_test, y_train, y_test = train_test_split(X, Y, test_size=test_size,

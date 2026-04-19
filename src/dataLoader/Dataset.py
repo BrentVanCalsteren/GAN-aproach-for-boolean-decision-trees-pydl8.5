@@ -20,13 +20,7 @@ class dataset:
         self.data = Data(features_scaled)
 
 
-    def _map_y_to_closest_val(self,y_gen):
-        unique_values = np.unique(self.y_scaled)
-        y_mapped = np.zeros(y_gen.shape)
-        for i,y in enumerate(y_gen):
-            y_mapped[i] = np.argsort(np.abs(unique_values-y))[0]
-        self.y_gen_scaled = y_mapped
-        self.y_gen = loader.value_to_index_array(y_mapped)
+
 
 
 

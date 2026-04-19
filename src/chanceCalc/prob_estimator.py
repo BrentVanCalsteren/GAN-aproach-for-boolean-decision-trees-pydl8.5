@@ -20,7 +20,7 @@ def get_gaussian_distributions(features):
         distr_funs.append(gaussian_distr(feat))
     return distr_funs #[dstr-f1, dstr-f2, dstr-f3,...]
 
-def calc_normalised_confidence_gaussian(distributions, samples):
+def calc_normalised_confidence_gaussian_sample(distributions, samples):
     features = samples.T  # (n_features, n_samples)
     log_likelihoods = np.zeros(samples.shape[0])
     log_likelihoods_max = np.zeros(samples.shape[0]) #array of feature length
@@ -39,8 +39,30 @@ def calc_normalised_confidence_gaussian(distributions, samples):
     confidence = np.exp(log_likelihoods - log_likelihoods_max)
     return confidence
 
-def get_error(distributions, samples):
-    error = 1 - calc_normalised_confidence_gaussian(distributions, samples)
+import numpy as np
+
+def calc_normalised_confidence_per_feature(distributions, samples):
+    n_samples, n_features = samples.shape
+    features = samples.T  # shape (n_features, n_samples)
+
+    # Pre‑compute max log‑likelihood for each feature (at its mean)
+    max_ll_per_feature = np.zeros(n_features)
+    for i, gm in enumerate(distributions):
+        mu = gm.means_[0, 0]
+        max_ll_per_feature[i] = gm.score_samples([[mu]])[0]
+
+    # Compute per‑feature log‑likelihood for all samples
+    log_likelihoods = np.zeros((n_features, n_samples))
+    for i, gm in enumerate(distributions):
+        log_likelihoods[i] = gm.score_samples(features[i].reshape(-1, 1))
+
+    # Normalize each feature independently
+    confidence = np.exp(log_likelihoods - max_ll_per_feature[:, np.newaxis])
+    return confidence.T  # shape (n_samples, n_features)
+
+
+def get_error_sample(distributions, samples):
+    error = 1 - calc_normalised_confidence_gaussian_sample(distributions, samples)
     return error
 
 ##################################################################
