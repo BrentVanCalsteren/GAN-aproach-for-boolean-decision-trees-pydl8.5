@@ -141,6 +141,6 @@ def scale_array(num_array):
     arr = np.asarray(num_array, dtype=float)
     min_val = arr.min()
     max_val = arr.max()
-    if max_val - min_val == 0: #division by zero
-        return np.zeros_like(arr)
+    if max_val-min_val == 0:
+        return 0
     return np.array((arr - min_val) / (max_val - min_val))

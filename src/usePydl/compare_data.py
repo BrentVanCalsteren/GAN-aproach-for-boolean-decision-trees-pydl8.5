@@ -1,25 +1,15 @@
-import src.dataLoader.data_obj as data_obj
+from src.dataLoader.Dataset import *
 import src.usePydl.leaf as l
 import predictor.gaussian_predictor as gp
 import classifier_pydl
 from sklearn.metrics import accuracy_score, classification_report
 
 def compare_data_with_pydl_classifier():
-    data = data_obj.dataset( #first load data without seperating the y_target
-        dataset_name='iris',
-        num_features=5, #iris_dataset has only 5 feat (including y)
-        max_bin_len_feat=9,
-        y_seperated=False,
-    )
-    predictor = gp.GaussianPredictor(data,max_depth=3,min_sup=1,time=100)
-    new_samples = predictor.generate_new_data(conf_trash=0.8,number_of_new_samples=100)
-    data.reload_data(
-        dataset_name='iris',
-        num_features=5,
-        max_bin_len_feat=9,
-        y_seperated=True, #reload but with seperating the y_target
-        y_index=-1
-    )
+    data_set = dataset(dataset_name='iris')
+    data_level_0 = data_set.data
+    data_level_0.load_predictor('gaussian')
+    data_level_0.generate_more_data()
+    """
     data.add_gen_data(gen_data=new_samples,y_index=-1)
     x_train,x_test,y_train,y_test = data_obj.split_train_test(data.x_bin,data.y,test_size=0.2)
     clasfi = classifier_pydl.classify_with_default_error(
@@ -41,6 +31,7 @@ def compare_data_with_pydl_classifier():
     print(f"Accuracy for training on fake data alone: {accuracy:.4f}")
     print("\nClassification Report:")
     print(classification_report(data.y, y_pred_fake))
+    """
 
 
 

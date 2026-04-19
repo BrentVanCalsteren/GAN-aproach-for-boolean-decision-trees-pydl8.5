@@ -9,9 +9,14 @@ def leaf_val_gaussian_distributions(samples):
         features = np.array(samples[list(tids)]).T
         print(features.shape)
         distributions = probEstimator.get_gaussian_distributions(features)
-        return distributions
+        return {"count":len(features),"distr":distributions}
     return value
 
+
+
+###############################""
+#########helpers
+##########################
 
 def get_all_leaves(tree):
     leaves = []

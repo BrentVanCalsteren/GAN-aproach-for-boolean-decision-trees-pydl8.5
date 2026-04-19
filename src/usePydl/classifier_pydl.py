@@ -1,7 +1,7 @@
 from pydl85 import DL85Classifier
 import unittest
 import leaf
-from src.dataLoader.data_obj import dataset
+from src.dataLoader.Dataset import dataset
 from error_fun import sim_error
 
 
