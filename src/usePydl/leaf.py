@@ -1,33 +1,29 @@
 import numpy as np
-import src.chanceCalc.prob_estimator as probEstimator
 from typing import Dict, Any, Optional, List
-##########################
-#######leaf vals predictor
-#########################
-def leaf_val_gaussian_distributions(samples):
+
+
+def leaf_val(predictor, samples):
     def value(tids):
         features = np.array(samples[list(tids)]).T
         print(features.shape)
-        distributions = probEstimator.get_gaussian_distributions(features)
+        distributions =predictor.get_distributions(features)
         return {"count":len(features),"distr":distributions}
     return value
 
 
-
-###############################""
-#########helpers
-##########################
-
-def get_all_leaves(tree):
+def get_leaf_vals(tree):
     leaves = []
+
     def recurse(node):
         if "value" in node:
             leaves.append(node)
         else:
             recurse(node["left"])
             recurse(node["right"])
+
     recurse(tree)
     return leaves
+
 
 class VizTree:
     def __init__(self, tree_dict: Optional[Dict[str, Any]] = None):

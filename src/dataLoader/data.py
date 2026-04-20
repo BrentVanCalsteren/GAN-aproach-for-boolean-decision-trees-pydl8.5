@@ -1,6 +1,7 @@
 import numpy as np
 import src.binaryConvertion.binner as binner
 from src.usePydl.predictor.gaussian_predictor import GaussianPredictor
+from src.usePydl.predictor.uniform_predictor import UNiPredictor
 
 class Data:
     x = None
@@ -58,6 +59,10 @@ class Data:
     def load_predictor(self,predictor_name,max_depth=3,min_sup=1,time=30):
         if predictor_name == "gaussian":
             self.predictor = GaussianPredictor(self.x,self.x_bin,max_depth=max_depth,min_sup=min_sup,time=time)
+        elif predictor_name == "uniform":
+            self.predictor = UNiPredictor(self.x,self.x_bin,max_depth=max_depth,min_sup=min_sup,time=time)
+        else:
+            raise Exception('predictor type not found')
 
     def generate_more_data(self,n=200,conf=0.8):
        if self.predictor is None:

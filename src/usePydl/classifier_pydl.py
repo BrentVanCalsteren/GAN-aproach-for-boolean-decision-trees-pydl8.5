@@ -2,7 +2,7 @@ from pydl85 import DL85Classifier
 import unittest
 import leaf
 from src.dataLoader.Dataset import dataset
-from error_fun import sim_error
+from error_fun import min_sup_error
 
 
 ######################"
@@ -45,7 +45,7 @@ class TestClassify(unittest.TestCase):
         max_bin_len_feat = 2
         num_features = 1
         data = dataset(dataset_name='iris',num_features=num_features,max_bin_len_feat=max_bin_len_feat,y_seperated=True)
-        error = sim_error(data.y)
+        error = min_sup_error(data.y)
         classifier = classify_with_custom_error(data.x_bin,data.y,error,max_depth,min_sup=1,time=30)
         leafs = leaf.get_all_leaves(classifier.tree_)
         self.assertLessEqual(len(leafs), 2**max_depth,

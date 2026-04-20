@@ -5,13 +5,13 @@ import classifier_pydl
 from sklearn.metrics import accuracy_score, classification_report
 
 def compare_data_with_pydl_classifier():
-    data_set = dataset(dataset_name='iris',bin_length=-1)
+    data_set = dataset(dataset_name='bank',bin_length=8)
     data_level_0 = data_set.data
     x_bin = data_level_0.x_bin[:,:-data_level_0.feature_bin_len[-1]]
     y = data_level_0.x[:,-1]
     X_train, X_test, y_train, y_test = split_train_test(x_bin, value_to_index(y), test_size=0.2)
     classify_test_pydl(X_train, X_test, y_train, y_test)
-    data_level_0.load_predictor('gaussian',time=600)
+    data_level_0.load_predictor('uniform',time=600)
     data_level_0.generate_more_data(n=500,conf=0.8)
     x_gen_bin = data_level_0.x_gen_bin[:,:-data_level_0.feature_bin_len[-1]]
     y_gen = _map_array_to_closest_val(y,data_level_0.x_gen[:,-1])
@@ -47,7 +47,8 @@ def split_train_test(X, Y, test_size=0.2):
                                                         random_state=random.randint(1, 100))
     return X_train, X_test, y_train, y_test
 
-
+#TODO: can nns be used? (normally for images) Fréchet Inception Distance (FID), Inception Score (IS) and Kernel Inception Distance (KID) be used for evaluating?
+#todo: check Statistical Similarity: Univariate Distribution, Bivariate Correlation, Multivariate Distribution, Propensity Mean Squared Error (pMSE)
 
 if __name__ == '__main__':
     compare_data_with_pydl_classifier()
