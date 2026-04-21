@@ -4,8 +4,22 @@ import random
 import classifier_pydl
 from sklearn.metrics import accuracy_score, classification_report
 
+def check_datasplit():
+    data_set = dataset(dataset_name='bank',bin_length=8)
+    data_set.split_data_on_features(n_splits=2)
+    datas = data_set.get_data_at_split_depth(3)
+    l = len(datas)
+    predictor_types = ["uniform"] * l
+    data_set.load_predictors(datas,predictor_types)
+    data_set.generate_new_data(datas,200,0.8)
+    data_set.combine_gen_data()
+    split_x = [data.x for data in datas]
+    print([x.shape for x in split_x])
+
 def compare_data_with_pydl_classifier():
     data_set = dataset(dataset_name='bank',bin_length=8)
+    data_set.split_data_on_features(n_splits=2)
+    data_set.get_data_at_split_depth(3)
     data_level_0 = data_set.data
     x_bin = data_level_0.x_bin[:,:-data_level_0.feature_bin_len[-1]]
     y = data_level_0.x[:,-1]
@@ -51,4 +65,4 @@ def split_train_test(X, Y, test_size=0.2):
 #todo: check Statistical Similarity: Univariate Distribution, Bivariate Correlation, Multivariate Distribution, Propensity Mean Squared Error (pMSE)
 
 if __name__ == '__main__':
-    compare_data_with_pydl_classifier()
+    check_datasplit()
