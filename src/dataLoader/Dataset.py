@@ -1,3 +1,5 @@
+import parso.pgen2
+
 import src.dataLoader.dataset_loader as loader
 import numpy as np
 from typing import List
@@ -52,12 +54,37 @@ class dataset:
         for i, data in enumerate(datas):
             data.load_predictor(predictor_types[i])
 
-    def generate_new_data(self,datas:List[Data],n=100,conf=0.8):
+    def gen_new_samples_for_datalist(self, datas:List[Data], n=100, conf=0.8):
         for data in datas:
             data.generate_more_data(n=n,conf=conf)
 
-    def combine_gen_data(self):
-        pass
+    def gen_data_for_parents(self, datas: List[Data]):
+        current_level = datas
+        while current_level:
+            parent_to_children = {}
+            for child in current_level:
+                parent = child.parent_data
+                if parent is not None:
+                    parent_to_children.setdefault(parent, []).append(child)
+
+            if not parent_to_children:
+                break
+
+            for parent, children in parent_to_children.items():
+                child_data_list = []
+                for child in children:
+                    gen = child.x_gen
+                    feat_idx = child.split_feature.feat_index
+                    split_val = child.split_feature.val
+                    left = gen[:, :feat_idx]
+                    right = gen[:, feat_idx:]
+                    col = np.full((gen.shape[0], 1), split_val)
+                    reconstructed = np.hstack([left, col, right])
+                    child_data_list.append(reconstructed)
+
+                parent.x_gen = np.vstack(child_data_list)
+                parent.set_bin_x_gen()
+            current_level = list(parent_to_children.keys())
 
 
 

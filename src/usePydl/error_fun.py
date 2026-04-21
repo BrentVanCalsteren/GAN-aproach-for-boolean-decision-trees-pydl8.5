@@ -17,7 +17,7 @@ def unifrom_error(predictor,samples: np.ndarray):
     def error(tids):
         sub_samples = samples[list(tids)]
         if len(sub_samples) <= 1:
-            return np.inf
+            return 10000
         features = sub_samples.T
         total_estimated_error = 0.0
         distrs = predictor.get_distributions(features)
@@ -30,7 +30,7 @@ def mse_error(samples: np.ndarray):
     def error(tids):
         sub_samples = samples[list(tids)]
         if len(sub_samples) <= 1:
-            return np.inf
+            return 1
         mean = np.mean(sub_samples, axis=0)
         return np.mean(np.sum((sub_samples - mean) ** 2, axis=1))
 
@@ -40,7 +40,7 @@ def mae_error(samples):
     def error(tids):
         sub_samples = samples[list(tids)]
         if len(sub_samples) <= 1:
-            return np.inf
+            return 1
         pred = np.mean(sub_samples, axis=0)
         return np.mean(np.sum(np.abs(sub_samples - pred), axis=1))
     return error

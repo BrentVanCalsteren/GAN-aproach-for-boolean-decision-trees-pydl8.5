@@ -4,36 +4,30 @@ import random
 import classifier_pydl
 from sklearn.metrics import accuracy_score, classification_report
 
-def check_datasplit():
-    data_set = dataset(dataset_name='bank',bin_length=8)
-    data_set.split_data_on_features(n_splits=2)
-    datas = data_set.get_data_at_split_depth(3)
-    l = len(datas)
-    predictor_types = ["uniform"] * l
-    data_set.load_predictors(datas,predictor_types)
-    data_set.generate_new_data(datas,200,0.8)
-    data_set.combine_gen_data()
-    split_x = [data.x for data in datas]
-    print([x.shape for x in split_x])
 
 def compare_data_with_pydl_classifier():
-    data_set = dataset(dataset_name='bank',bin_length=8)
+    data_set = dataset(dataset_name='iris',bin_length=-1)
     data_set.split_data_on_features(n_splits=2)
-    data_set.get_data_at_split_depth(3)
-    data_level_0 = data_set.data
+    datas = data_set.get_data_at_split_depth(1)
+    l = len(datas)
+    predictor_types = ["gaussian"] * l
+    for data in datas:
+        print(data.x.shape)
+    data_set.load_predictors(datas,predictor_types)
+    data_set.gen_new_samples_for_datalist(datas, 100, 0.8)
+    data_set.gen_data_for_parents(datas)
+    data_level_0 = data_set.root_data
     x_bin = data_level_0.x_bin[:,:-data_level_0.feature_bin_len[-1]]
     y = data_level_0.x[:,-1]
     X_train, X_test, y_train, y_test = split_train_test(x_bin, value_to_index(y), test_size=0.2)
     classify_test_pydl(X_train, X_test, y_train, y_test)
-    data_level_0.load_predictor('uniform',time=600)
-    data_level_0.generate_more_data(n=500,conf=0.8)
     x_gen_bin = data_level_0.x_gen_bin[:,:-data_level_0.feature_bin_len[-1]]
     y_gen = _map_array_to_closest_val(y,data_level_0.x_gen[:,-1])
     classify_test_pydl(x_gen_bin,x_bin,value_to_index(y_gen),value_to_index(y))
 
 def classify_test_pydl(x_train, x_test, y_train, y_test):
     clasfi = classifier_pydl.classify_with_default_error(
-        x_bin=x_train, y=y_train, max_depth=5, min_sup=1, time=300)
+        x_bin=x_train, y=y_train, max_depth=4, min_sup=1, time=300)
     y_pred_test = clasfi.predict(x_test)
     accuracy = accuracy_score(y_test, y_pred_test)
     print(f"Accuracy: {accuracy:.4f}")
@@ -65,4 +59,4 @@ def split_train_test(X, Y, test_size=0.2):
 #todo: check Statistical Similarity: Univariate Distribution, Bivariate Correlation, Multivariate Distribution, Propensity Mean Squared Error (pMSE)
 
 if __name__ == '__main__':
-    check_datasplit()
+    compare_data_with_pydl_classifier()
