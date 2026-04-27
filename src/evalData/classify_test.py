@@ -11,7 +11,7 @@ def create_classifier_default(x_bin,y,max_depth=3,min_sup=2,time=100):
     return clasfi
 
 def eval_data():
-    x, x_bin, x_gen, x_gen_bin, y, y_gen = generate_new_data(pred_type="gaussian_1D",try_splits=0,y_index = -1)
+    x, x_bin, x_gen, x_gen_bin, y, y_gen = generate_new_data(pred_type="gaussian_1D",dataset_name='bank',try_splits=2,y_index = -1)
     print("result on real data")
     x_train, x_test, y_train, y_test = split_train_test(x_bin, y, test_size=0.2)
     classify_test_pydl(x_train, x_test, y_train, y_test)

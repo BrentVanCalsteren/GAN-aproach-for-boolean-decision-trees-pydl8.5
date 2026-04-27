@@ -5,6 +5,8 @@ from src.usePydl.predictor.uniform_predictor import UNiPredictor
 from src.usePydl.predictor.gaussian_1D_predictor import Gaussian1DPredictor
 from src.dataLoader.feature_struct import FeatureStruct
 
+DISCRETE_LIMIT = 5
+
 class Data:
     x = None
     x_bin = None
@@ -19,10 +21,12 @@ class Data:
     depth = 0
 
     predictor = None
+    discrete_feature_ids = None
 
     def __init__(self, feat_scaled,bin_length=-1,split_feature=None,parent_data=None,depth=0):
         self.depth = depth
         self.child_datas = []
+        self.discrete_feature_ids = check_discrete_features(feat_scaled)
         self.split_feature = split_feature
         self.parent_data = parent_data
         if bin_length == -1:
@@ -45,6 +49,9 @@ class Data:
             print('no index given, finding best split')
             index = get_min_feat_index(features)
             print(f'INDEX FOUND: {index}')
+        if index not in self.discrete_feature_ids:
+            print(f"Can't split data on continue val")
+            return
         split_features = features[index, :]
         reduced = np.delete(features, index, axis=0)
 
@@ -98,6 +105,15 @@ class Data:
 
 
  #HELPERs
+
+def check_discrete_features(feat_scaled):
+    descrete_ids = []
+    for i, feature in enumerate(feat_scaled):
+        uniques = np.unique(feature)
+        if len(uniques) <= DISCRETE_LIMIT:
+            descrete_ids.append(i)
+    return descrete_ids
+
 def get_min_feat_index(features):
     min_indx = 0
     min_uniques = np.inf

@@ -3,8 +3,9 @@ import numpy as np
 def gaussian_error(predictor, samples: np.ndarray):
     def error(tids):
         sub_samples = samples[list(tids)]
-        if len(sub_samples) <= 1:
-            return np.inf
+        shape = sub_samples.shape  # (sample,feat)
+        if int(shape[1]/2) >= shape[0]:
+            return 10000
         features = sub_samples.T
         total_estimated_error = 0.0
         distrs = predictor.get_distributions(features)
@@ -16,7 +17,8 @@ def gaussian_error(predictor, samples: np.ndarray):
 def unifrom_error(predictor,samples: np.ndarray):
     def error(tids):
         sub_samples = samples[list(tids)]
-        if len(sub_samples) <= 1:
+        shape = sub_samples.shape #(sample,feat)
+        if int(shape[1]/2) >= shape[0]:
             return 10000
         features = sub_samples.T
         total_estimated_error = 0.0

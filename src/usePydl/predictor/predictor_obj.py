@@ -32,7 +32,7 @@ class Predictor:
             distr_funs.append(self.get_distr(feat))
         return distr_funs  # [dstr-f1, dstr-f2, dstr-f3,...]
 
-    def generate_new_data(self, n_new_samples: int = 100, conf_tresh: float = 0.8,keep_normal_distr: bool = False) -> np.ndarray:
+    def generate_new_data(self, n_new_samples: int = 100, conf_tresh: float = 0.8,mode: str = "rebalance") -> np.ndarray:
         leafs = get_leaf_vals(self.predictor.tree_)
         samples_counts_leaf = []
         distrbution_leafs = []
@@ -40,12 +40,15 @@ class Predictor:
             distrbution_leafs.append(leaf['value']['distr'])
             samples_counts_leaf.append(leaf['value']['count'])
         new_samples = []
-        total_leaf_s_count = np.sum(samples_counts_leaf)
+        total_sample_count = np.sum(samples_counts_leaf)
         for i, count in enumerate(samples_counts_leaf):
-            if keep_normal_distr:
-                n = int((count/total_leaf_s_count) * n_new_samples)
-            else:
-                n = int(n_new_samples/total_leaf_s_count)
+            if mode == "keep_counts":
+                n = int((count/total_sample_count) * n_new_samples)
+            elif mode == "even":
+                n = int(n_new_samples/total_sample_count)
+            elif mode == "rebalance":
+                n = int((total_sample_count / count) * n_new_samples)
+
             samples = self._generate_new_leaf_samples(n,distrbution_leafs[i],conf_tresh)
             for sample in samples:
                 new_samples.append(sample)
