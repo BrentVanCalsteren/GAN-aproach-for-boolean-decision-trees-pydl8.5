@@ -9,7 +9,7 @@ def gaussian_error(predictor, samples: np.ndarray):
         total_estimated_error = 0.0
         distrs = predictor.get_distributions(features)
         total_estimated_error += np.sum(predictor.get_error_sample(distrs, features.T))
-        return total_estimated_error
+        return total_estimated_error / len(sub_samples)
 
     return error
 

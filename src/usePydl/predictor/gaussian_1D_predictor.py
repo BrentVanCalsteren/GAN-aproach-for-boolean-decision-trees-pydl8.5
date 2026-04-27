@@ -25,23 +25,19 @@ class Gaussian1DPredictor(Predictor):
         gm.fit(feature_array.reshape(-1, 1))
         return gm
 
-
-    def calc_norm_conf_each_sample(self, distributions: List[SingleGaussian1D_distr], samples):
-        features = samples.T  # (n_features, n_samples)
+    def calc_norm_conf_each_sample(self, distributions, samples):
+        features = samples.T  #n_features x n_samples
         log_likelihoods = np.zeros(samples.shape[0])
-        log_likelihoods_max = np.zeros(samples.shape[0])  # array of feature length
-        for i, gm in enumerate(distributions):
-            # Log-likelihood for all samples
-            log_like = gm.score_feature(features[i].reshape(-1, 1))  # [ll1 ll2 ll3 ...]
-            # returns prob dens vals: pdf(x) = 1 / (σ * √(2π)) * exp( - (x - μ)² / (2σ²) )
-            # density of 2.5 as "2.5 times more confident"—it reflects sharper distribution.
-            log_likelihoods += log_like
+        log_likelihoods_max = 0.0
 
-            mu = gm.mean  # get max log-likelihood (at the mean) for normalizing to value [0,1]
-            ll_max = gm.score_feature([[mu]])
-            log_likelihoods_max += ll_max  # is 1 value but np will map over entire array
-            # Normalise
-        confidence = np.exp(log_likelihoods - log_likelihoods_max)
+        for i, gm in enumerate(distributions):
+            log_like = gm.score_feature(features[i])  # (n_samples,)
+            ll_max = float(gm.score_feature(np.array([gm.mean])))  #peak
+
+            log_likelihoods += log_like
+            log_likelihoods_max += ll_max
+
+        confidence = np.exp(log_likelihoods - log_likelihoods_max)#0,1
         return confidence
 
     def _generate_new_leaf_samples(self, n, distributions: List[SingleGaussian1D_distr], conf_tresh):

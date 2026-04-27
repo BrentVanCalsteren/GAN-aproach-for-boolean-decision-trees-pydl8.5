@@ -62,6 +62,7 @@ class dataset:
     def gen_new_samples_for_datalist(self, datas:List[Data], n=100, conf=0.8):
         for data in datas:
             data.generate_more_data(n=n,conf=conf)
+        self.gen_data_for_parents(datas)
 
     def gen_data_for_parents(self, datas: List[Data]):
         current_level = datas

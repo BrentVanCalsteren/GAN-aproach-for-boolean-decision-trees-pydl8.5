@@ -49,20 +49,15 @@ class UNiPredictor(Predictor):
                     samples_above_tresh.append(samples[i])
         return np.array(samples_above_tresh)[:n]
 
-
-
     def calc_norm_conf_each_sample(self, distributions, samples):
         lows = np.array([d.min[0] for d in distributions])
         highs = np.array([d.max[0] for d in distributions])
+        widths = highs - lows
+        widths = np.where(widths == 0, 1e-10, widths) #no zero's
 
-        sample_x_feature = ((samples >= lows) & (samples <= highs)).astype(float)
-        samples_ll = np.zeros(samples.shape[0])
-        for i, sample in enumerate(sample_x_feature):
-            samples_ll[i] = np.sum(sample)
-        ll_max = 1 * len(distributions)
-
-        # Normalise
-        confidence = samples_ll/ll_max
+        inside = ((samples >= lows) & (samples <= highs)).astype(float)
+        pdf_values = inside / widths
+        confidence = np.mean(pdf_values, axis=1)
         return confidence
 
 
