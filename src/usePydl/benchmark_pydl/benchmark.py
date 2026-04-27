@@ -11,16 +11,17 @@ def criteria_test(test, predictor):
     if test == "DEPTH": return depth_test(predictor)
     elif test == "N_SAMPLES": return samples_test(predictor)
     elif test == "N_FEATURES": return feature_test(predictor)
+    elif test == "SAMPLESxFEATURES": return SAMPLESxFEATURES(predictor)
 
 PREDICTORS ={
     "DEFAULT": default_predictor.DefaultPredictor,
-    "GAUSSIAN_1D": gaussian_1D_predictor.GaussianPredictor,
+    "GAUSSIAN_1D": gaussian_1D_predictor.Gaussian1DPredictor,
     "UNIFORM": uniform_predictor.UNiPredictor
 }
 TEST_FUN = None
 
 
-def depth_test(predictor):
+def depth_test(predictor): #results say inconclusive (the same?)
     duration = 0
     depth = 1
     while duration < MAX_TIME or depth < 100:
@@ -32,7 +33,7 @@ def depth_test(predictor):
         depth += 1
     return
 
-def samples_test(predictor):
+def samples_test(predictor): #results say lineair on samples
     duration = 0
     n_smaples = 1000
     while duration < MAX_TIME or n_smaples < 10000:
@@ -44,7 +45,7 @@ def samples_test(predictor):
         n_smaples += 500
     return
 
-def feature_test(predictor):
+def feature_test(predictor): #results say lineair on feature
     duration = 0
     n_features = 1000
     while duration < MAX_TIME or n_features < 10000:
@@ -54,6 +55,20 @@ def feature_test(predictor):
         duration = time.perf_counter() - start
         print(f'loop done, features: {n_features} = {duration}s')
         n_features += 500
+    return
+
+def SAMPLESxFEATURES(predictor):
+    duration = 0
+    n_samples = 1000
+    n_features = 1000
+    while duration < MAX_TIME or n_features < 10000:
+        bools, nums = generate_random_samples(n=n_samples, features=n_features)
+        start = time.perf_counter()
+        p = predictor(bools, nums, max_depth=100)
+        duration = time.perf_counter() - start
+        print(f'loop done, features: {n_features} = {duration}s')
+        n_features += 500
+        n_samples += 500
     return
 
 
@@ -116,4 +131,4 @@ def run_benchmark():
     return
 
 if __name__ == '__main__':
-    criteria_test("N_FEATURES", PREDICTORS["GAUSSIAN_1D"])
+    criteria_test("SAMPLESxFEATURES", PREDICTORS["GAUSSIAN_1D"])

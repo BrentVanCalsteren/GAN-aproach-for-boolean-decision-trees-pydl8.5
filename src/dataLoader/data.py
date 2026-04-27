@@ -1,7 +1,8 @@
 import numpy as np
 import src.binaryConvertion.binner as binner
-from src.usePydl.predictor.gaussian_skit_predictor import GaussianPredictor
+from src.usePydl.predictor.gaussian_multi_predictor import GaussianMultiPredictor
 from src.usePydl.predictor.uniform_predictor import UNiPredictor
+from src.usePydl.predictor.gaussian_1D_predictor import Gaussian1DPredictor
 from src.dataLoader.feature_struct import FeatureStruct
 
 class Data:
@@ -15,13 +16,13 @@ class Data:
 
     split_feature : FeatureStruct = None #is the feature that this subdata is split with
     parent_data = None
-    child_datas = []
     depth = 0
 
     predictor = None
 
     def __init__(self, feat_scaled,bin_length=-1,split_feature=None,parent_data=None,depth=0):
         self.depth = depth
+        self.child_datas = []
         self.split_feature = split_feature
         self.parent_data = parent_data
         if bin_length == -1:
@@ -31,26 +32,19 @@ class Data:
         self.x_bin, self.feature_bin_len,self.feature_clusters = binner.bin_convertion_2d(feat_scaled, max_bins=bin_length)
         self.shuffle_samples()
 
-    def get_data_at_depth(self, data_array, depth=0, visited=None):
-        if visited is None:
-            visited = set()
-        state = (id(self), depth)
-        if state in visited:
-            return
-        visited.add(state)
-
-        if depth == self.depth:
+    def get_data_at_depth(self, data_array, target_depth):
+        if self.depth == target_depth:
             data_array.append(self)
-        else:
-            if self.child_datas:
-                for data in self.child_datas:
-                    data.get_data_at_depth(data_array, depth, visited)
+        elif self.depth < target_depth:
+            for child in self.child_datas:
+                child.get_data_at_depth(data_array, target_depth)
 
     def split_data_on_index(self,index=None):
         features = self.x.T
         if index == None:
             print('no index given, finding best split')
             index = get_min_feat_index(features)
+            print(f'INDEX FOUND: {index}')
         split_features = features[index, :]
         reduced = np.delete(features, index, axis=0)
 
@@ -66,19 +60,21 @@ class Data:
                     feat_scaled=sub_features,
                     split_feature=FeatureStruct(val=float(unique_vals[i]),feat_index=int(index)),
                     parent_data=self))
-        print(f'data succesfully split on feature: {index},new data_objs: {self.child_datas}')
+        print(f'data succesfully split on feature: {index},new n data_objs: {len(self.child_datas)}')
 
     def shuffle_samples(self):
         p = np.random.permutation(len(self.x))
         self.x = self.x[p]
         self.x_bin = self.x_bin[p]
 
-    def load_predictor(self,predictor_name,max_depth=2,min_sup=1,time=100):
+    def load_predictor(self,predictor_name,max_depth=3,min_sup=1,time=100):
         print('loading predictor...')
-        if predictor_name == "gaussian":
-            self.predictor = GaussianPredictor(self.x,self.x_bin,max_depth=max_depth,min_sup=min_sup,time=time)
+        if predictor_name == "gaussian_multi":
+            self.predictor = GaussianMultiPredictor(self.x,self.x_bin,max_depth=max_depth,min_sup=min_sup,time=time)
         elif predictor_name == "uniform":
             self.predictor = UNiPredictor(self.x,self.x_bin,max_depth=max_depth,min_sup=min_sup,time=time)
+        elif predictor_name == "gaussian_1D":
+            self.predictor = Gaussian1DPredictor(self.x, self.x_bin, max_depth=max_depth, min_sup=min_sup, time=time)
         else:
             raise Exception('predictor type not found')
 
@@ -118,7 +114,7 @@ def calculate_bin_length(features_scaled):
         uniques = np.unique(feature)
         if len(uniques) <= min_uniques:
             min_uniques = len(uniques)
-    return min_uniques
+    return min_uniques * 2
 
 def convert_feats_specific_bin_length(feats, clusters):
     bin_data = []

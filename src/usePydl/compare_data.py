@@ -6,21 +6,23 @@ from sklearn.metrics import accuracy_score, classification_report
 
 
 def compare_data_with_pydl_classifier():
-    data_set = dataset(dataset_name='iris',bin_length=-1)
-    data_set.split_data_on_features(n_splits=2)
-    datas = data_set.get_data_at_split_depth(1)
+    data_set = dataset(dataset_name='bank',bin_length=-1)
+    data_set.split_data_on_features(n_splits=3)
+    datas = data_set.get_data_at_split_depth(3)
     l = len(datas)
-    predictor_types = ["gaussian"] * l
+    predictor_types = ["gaussian_1D"] * l
     for data in datas:
         print(data.x.shape)
-    data_set.load_predictors(datas,predictor_types)
-    data_set.gen_new_samples_for_datalist(datas, 100, 0.8)
+    data_set.load_predictors(datas,predictor_types, max_depth=3,time=100)
+    data_set.gen_new_samples_for_datalist(datas, 1000, 0.9)
     data_set.gen_data_for_parents(datas)
     data_level_0 = data_set.root_data
     x_bin = data_level_0.x_bin[:,:-data_level_0.feature_bin_len[-1]]
     y = data_level_0.x[:,-1]
-    X_train, X_test, y_train, y_test = split_train_test(x_bin, value_to_index(y), test_size=0.2)
-    classify_test_pydl(X_train, X_test, y_train, y_test)
+    print("result on real data")
+    x_train, x_test, y_train, y_test = split_train_test(x_bin, value_to_index(y), test_size=0.2)
+    classify_test_pydl(x_train, x_test, y_train, y_test)
+    print("result on gen data")
     x_gen_bin = data_level_0.x_gen_bin[:,:-data_level_0.feature_bin_len[-1]]
     y_gen = _map_array_to_closest_val(y,data_level_0.x_gen[:,-1])
     classify_test_pydl(x_gen_bin,x_bin,value_to_index(y_gen),value_to_index(y))
@@ -50,10 +52,10 @@ def _map_array_to_closest_val(vals, array):
     return y_mapped
 
 
-def split_train_test(X, Y, test_size=0.2):
-    X_train, X_test, y_train, y_test = train_test_split(X, Y, test_size=test_size,
+def split_train_test(x, y, test_size=0.2):
+    x_train, x_test, y_train, y_test = train_test_split(x, y, test_size=test_size,
                                                         random_state=random.randint(1, 100))
-    return X_train, X_test, y_train, y_test
+    return x_train, x_test, y_train, y_test
 
 #TODO: can nns be used? (normally for images) Fréchet Inception Distance (FID), Inception Score (IS) and Kernel Inception Distance (KID) be used for evaluating?
 #todo: check Statistical Similarity: Univariate Distribution, Bivariate Correlation, Multivariate Distribution, Propensity Mean Squared Error (pMSE)

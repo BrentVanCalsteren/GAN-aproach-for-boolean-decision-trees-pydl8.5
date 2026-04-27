@@ -12,6 +12,8 @@ class SingleGaussian1D_distr:
         points = np.asarray(points, dtype=np.float64).ravel()
         self.mean = points.mean()
         self.var = points.var()
+        if self.var < 1e-6:
+            self.var = 1e-6
         self.log_scale = 0.5 * np.log(2 * np.pi * self.var)
 
     def score_feature(self, feature):

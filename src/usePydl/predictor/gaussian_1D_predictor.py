@@ -5,9 +5,9 @@ from src.usePydl.leaf import leaf_val, get_leaf_vals
 from src.distributions.single_gaussian import SingleGaussian1D_distr
 import numpy as np
 
-class GaussianPredictor(Predictor):
-    #Fit Complexity: O(k·n·d²·EM algorithm used)k=gaus_components,n=number samples,d=num features
-    #score complexity: 	O(k·d)
+class Gaussian1DPredictor(Predictor):
+    #Fit Complexity: O(n·d)
+    #score complexity: 	O(n·d)
     def __init__(self,samples, samples_bin, max_depth=3,min_sup=1,time=100):
         self.samples = samples
         super().__init__(
@@ -25,21 +25,6 @@ class GaussianPredictor(Predictor):
         gm.fit(feature_array.reshape(-1, 1))
         return gm
 
-    def generate_new_data(self, n_new_samples=100,conf_tresh=0.8) -> np.ndarray:
-        leafs = get_leaf_vals(self.predictor.tree_)
-        samples_counts_leaf = []
-        distrbution_leafs = []
-        for leaf in leafs:
-            distrbution_leafs.append(leaf['value']['distr'])
-            samples_counts_leaf.append(leaf['value']['count'])
-        new_samples = []
-        total_leaf_s_count = np.sum(samples_counts_leaf)
-        for i, count in enumerate(samples_counts_leaf):
-            n = int((count/total_leaf_s_count) * n_new_samples)
-            samples = self._generate_new_leafsamples(n,distrbution_leafs[i],conf_tresh)
-            for sample in samples:
-                new_samples.append(sample)
-        return np.array(new_samples)
 
     def calc_norm_conf_each_sample(self, distributions: List[SingleGaussian1D_distr], samples):
         features = samples.T  # (n_features, n_samples)
@@ -59,16 +44,13 @@ class GaussianPredictor(Predictor):
         confidence = np.exp(log_likelihoods - log_likelihoods_max)
         return confidence
 
-    def _generate_new_leafsamples(self, n, distributions: List[SingleGaussian1D_distr], conf_tresh):
+    def _generate_new_leaf_samples(self, n, distributions: List[SingleGaussian1D_distr], conf_tresh):
         samples_above_tresh = []
         while len(samples_above_tresh) < n:
             features = []
             for distr in distributions:
-                (gen, _) = distr.sample(n_samples=100)  # returns ([[10*[f1]],[10*[f2]],...] , Label)
-                feat = []
-                for point in gen:
-                    feat.append(point[0])
-                features.append(feat)
+                gen = distr.sample(n_samples=100)  # returns ([[10*[f1]],[10*[f2]],...] , Label)
+                features.append(gen)
             features = np.array(features)
             good_features = []
             z_prob_matrix = calc_norm_conf_sample_x_feature(distributions, features.T)

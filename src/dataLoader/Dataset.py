@@ -24,7 +24,6 @@ class dataset:
         features_scaled = loader.standardize_2d_features(self.samples_complete.T)
         self.root_data = Data(feat_scaled=features_scaled,bin_length=bin_length)
 
-
     def split_data_on_features(self, n_splits=1, feature_splits=None):
         if feature_splits is None:
             feature_splits = []
@@ -34,25 +33,31 @@ class dataset:
         datas = [self.root_data]
         if feature_splits is None:
             print("No feature splits given, splitting on min unique feature")
-            #TODO: implement feature split
+
         while n_splits > 0:
-            new_datas  = []
+            new_datas = []
             for data in datas:
                 data.split_data_on_index()
-                data.get_data_at_depth(new_datas,1)
+                new_datas.extend(data.child_datas)
             datas = new_datas
-            n_splits -=1
+            n_splits -= 1
 
-    def get_data_at_split_depth(self,depth):
+    def get_data_at_split_depth(self, depth):
         datas = []
-        self.root_data.get_data_at_depth(datas,depth)
+        self.root_data.get_data_at_depth(datas, target_depth=depth)
+        ids = [id(d) for d in datas]
+        print(f"Unique nodes: {len(set(ids))}, Total: {len(ids)}")  # duplicates if different
+        if not datas:
+            print("Datas is empty")
         return datas
 
-    def load_predictors(self,datas:List[Data], predictor_types: List[str]):
+    def load_predictors(self,datas:List[Data], predictor_types: List[str],max_depth=3,time=100):
         if len(predictor_types) != len(datas):
             print("Number of predictors does not match number of datas")
+        if not datas:
+            print("Datas is empty")
         for i, data in enumerate(datas):
-            data.load_predictor(predictor_types[i])
+            data.load_predictor(predictor_types[i],max_depth=max_depth,time=time)
 
     def gen_new_samples_for_datalist(self, datas:List[Data], n=100, conf=0.8):
         for data in datas:

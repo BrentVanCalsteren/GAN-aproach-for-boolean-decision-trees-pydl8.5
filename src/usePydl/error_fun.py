@@ -21,7 +21,7 @@ def unifrom_error(predictor,samples: np.ndarray):
         features = sub_samples.T
         total_estimated_error = 0.0
         distrs = predictor.get_distributions(features)
-        total_estimated_error += np.sum(predictor.get_error_sample(distrs, features.T))
+        total_estimated_error += np.sum(predictor.get_error_sample(distrs, features.T))/len(sub_samples)
         return total_estimated_error
 
     return error

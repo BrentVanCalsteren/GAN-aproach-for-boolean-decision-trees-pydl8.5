@@ -29,14 +29,10 @@ class DefaultPredictor:
     def get_distr(self, feature_array):
         return
 
-
-    def generate_new_data(self, n_new_samples=100,conf_tresh=0.8) -> np.ndarray:
-        return
-
     def calc_norm_conf_each_sample(self, distributions: List[GaussianMixture], samples):
         return
 
-    def _generate_new_leafsamples(self, n, distributions: List[GaussianMixture], conf_tresh):
+    def _generate_new_leaf_samples(self, n, distributions: List[GaussianMixture], conf_tresh):
         return
 
 
@@ -44,9 +40,6 @@ class DefaultPredictor:
 
 
 #GENERAL FUNCTIONS - prob estimation fucntions
-
-
-
 
 
 def calc_norm_conf_sample_x_feature(distributions, samples):

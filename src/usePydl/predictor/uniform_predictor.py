@@ -25,23 +25,7 @@ class UNiPredictor(Predictor):
         uni.fit(feature_array.reshape(-1, 1))
         return uni
 
-    def generate_new_data(self, n_new_samples: int = 100, conf_tresh: float = 0.8) -> np.ndarray:
-        leafs = get_leaf_vals(self.predictor.tree_)
-        samples_counts_leaf = []
-        distrbution_leafs = []
-        for leaf in leafs:
-            distrbution_leafs.append(leaf['value']['distr'])
-            samples_counts_leaf.append(leaf['value']['count'])
-        new_samples = []
-        total_leaf_s_count = np.sum(samples_counts_leaf)
-        for i, count in enumerate(samples_counts_leaf):
-            n = int((count/total_leaf_s_count) * n_new_samples)
-            samples = self._generate_new_leafsamples(n,distrbution_leafs[i],conf_tresh)
-            for sample in samples:
-                new_samples.append(sample)
-        return np.array(new_samples)
-
-    def _generate_new_leafsamples(self, n,distributions: List[Uniform_distr],conf_tresh):
+    def _generate_new_leaf_samples(self, n,distributions: List[Uniform_distr],conf_tresh):
         samples_above_tresh = []
         while len(samples_above_tresh) < n:
             features = []
