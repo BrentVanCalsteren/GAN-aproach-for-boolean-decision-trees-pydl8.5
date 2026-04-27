@@ -8,7 +8,7 @@ from src.distributions.uniform import Uniform_distr
 class UNiPredictor(Predictor):
     #Fit Complexity: O(n·d)
     #score complexity: 	O(d)
-    def __init__(self,samples: np.ndarray,samples_bin: np.ndarray,max_depth: int = 3,min_sup: int = 2,time: int = 100):
+    def __init__(self,samples: np.ndarray,samples_bin: np.ndarray,max_depth: int = 3,min_sup: int = 1,time: int = 100):
         self.samples = samples
         super().__init__(
             samples_bin=samples_bin,

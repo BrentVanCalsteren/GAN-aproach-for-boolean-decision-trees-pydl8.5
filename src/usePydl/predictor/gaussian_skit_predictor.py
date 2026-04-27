@@ -8,7 +8,7 @@ import numpy as np
 class GaussianPredictor(Predictor):
     #Fit Complexity: O(k·n·d²·EM algorithm used)k=gaus_components,n=number samples,d=num features
     #score complexity: 	O(k·d)
-    def __init__(self,samples, samples_bin, max_depth=3,min_sup=2,time=100):
+    def __init__(self,samples, samples_bin, max_depth=3,min_sup=1,time=100):
         self.samples = samples
         super().__init__(
             samples_bin=samples_bin,

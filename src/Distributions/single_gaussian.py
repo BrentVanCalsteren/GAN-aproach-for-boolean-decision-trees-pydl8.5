@@ -1,7 +1,6 @@
 import numpy as np
 
-
-class Bernoulli_distr:
+class SingleGaussian1D_distr:
     mean = None
     var = None
     log_scale = None

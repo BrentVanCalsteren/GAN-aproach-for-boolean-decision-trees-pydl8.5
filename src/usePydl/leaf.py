@@ -10,6 +10,11 @@ def leaf_val(predictor, samples):
         return {"count":len(features),"distr":distributions}
     return value
 
+def empty_leave_val():
+    def value(tids):
+        return 1
+    return value
+
 
 def get_leaf_vals(tree):
     leaves = []

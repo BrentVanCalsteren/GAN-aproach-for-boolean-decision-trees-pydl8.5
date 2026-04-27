@@ -1,4 +1,3 @@
-import numpy as np
 from pydl85 import DL85Predictor
 
 class Predictor:

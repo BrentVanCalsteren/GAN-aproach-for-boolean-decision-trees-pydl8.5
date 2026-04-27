@@ -1,6 +1,6 @@
 import numpy as np
 import src.binaryConvertion.binner as binner
-from src.usePydl.predictor.gaussian_predictor import GaussianPredictor
+from src.usePydl.predictor.gaussian_skit_predictor import GaussianPredictor
 from src.usePydl.predictor.uniform_predictor import UNiPredictor
 from src.dataLoader.feature_struct import FeatureStruct
 
