@@ -23,36 +23,37 @@ class Predictor:
     def get_distr(self, feature_array):
         raise NotImplementedError('if you wanna use this method you should implement it in child class')
 
-    def _generate_new_leaf_samples(self, n,distributions,conf_tresh):
-        raise NotImplementedError('if you wanna use this method you should implement it in child class')
-
     def get_distributions(self, features):
         distr_funs = []
         for feat in features:
             distr_funs.append(self.get_distr(feat))
         return distr_funs  # [dstr-f1, dstr-f2, dstr-f3,...]
 
-    def generate_new_data(self, n_new_samples: int = 100, conf_tresh: float = 0.8,mode: str = "rebalance") -> np.ndarray:
+    def generate_new_data(self, n_new_samples: int = 100, conf_tresh: float = 0.8,mode: str = "keep_counts") -> np.ndarray:
         leafs = get_leaf_vals(self.predictor.tree_)
-        samples_counts_leaf = []
-        distrbution_leafs = []
-        for leaf in leafs:
-            distrbution_leafs.append(leaf['value']['distr'])
-            samples_counts_leaf.append(leaf['value']['count'])
+        distributions_x_leafs = [leaf["value"]["distr"] for leaf in leafs]
+        samples_in_leaf = np.array([leaf["value"]["count"] for leaf in leafs])
+        total_count = samples_in_leaf.sum()
         new_samples = []
-        total_sample_count = np.sum(samples_counts_leaf)
-        for i, count in enumerate(samples_counts_leaf):
-            if mode == "keep_counts":
-                n = int((count/total_sample_count) * n_new_samples)
-            elif mode == "even":
-                n = int(n_new_samples/total_sample_count)
-            elif mode == "rebalance":
-                n = int((total_sample_count / count) * n_new_samples)
-
-            samples = self._generate_new_leaf_samples(n,distrbution_leafs[i],conf_tresh)
-            for sample in samples:
-                new_samples.append(sample)
+        ns = None
+        if mode == "keep_counts":
+            ns = ((samples_in_leaf / total_count) * n_new_samples).astype(int)
+        elif mode == "even":
+            ns = np.full(len(leafs), n_new_samples // len(leafs))
+        else:
+            raise ValueError(f"Unknown mode")
+        for i in range(len(leafs)):
+            new_samples.extend(self._generate_new_leaf_samples(ns[i],distributions_x_leafs[i],conf_tresh))
         return np.array(new_samples)
+
+    def _generate_new_leaf_samples(self, n, distributions, conf_thresh):
+        samples_above_thresh = []
+        while len(samples_above_thresh) < n:
+            gen_feats = np.array([distr.sorted_samples(n=100) for distr in distributions])  # (n_features, 100)
+            samples = gen_feats.T  #(100, n_features)
+            confidence = self.calc_norm_conf_each_sample(distributions, samples)
+            samples_above_thresh.extend(samples[confidence >= conf_thresh])
+        return np.array(samples_above_thresh)[:n]
 
     def get_error_sample(self, distributions, samples):
         error = 1 - self.calc_norm_conf_each_sample(distributions, samples)

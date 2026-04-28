@@ -31,16 +31,3 @@ class DefaultPredictor:
 
     def calc_norm_conf_each_sample(self, distributions: List[GaussianMixture], samples):
         return
-
-    def _generate_new_leaf_samples(self, n, distributions: List[GaussianMixture], conf_tresh):
-        return
-
-
-
-
-
-#GENERAL FUNCTIONS - prob estimation fucntions
-
-
-def calc_norm_conf_sample_x_feature(distributions, samples):
-    return

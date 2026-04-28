@@ -1,33 +1,20 @@
 import numpy as np
 #continue errors
-def gaussian_error(predictor, samples: np.ndarray):
+#/////////////////////////////////////
+#default predictor error
+def predictor_error(predictor, samples: np.ndarray):
     def error(tids):
         sub_samples = samples[list(tids)]
-        shape = sub_samples.shape  # (sample,feat)
-        if int(shape[1]/2) >= shape[0]:
-            return 10000
+        n_samples, n_features = sub_samples.shape
+        if n_features // 2 >= n_samples:  # too few samples to fit
+            return 1e6
         features = sub_samples.T
-        total_estimated_error = 0.0
         distrs = predictor.get_distributions(features)
-        total_estimated_error += np.sum(predictor.get_error_sample(distrs, features.T))
-        return total_estimated_error / len(sub_samples)
-
+        return np.sum(predictor.get_error_sample(distrs, sub_samples)) / n_samples
     return error
 
-def unifrom_error(predictor,samples: np.ndarray):
-    def error(tids):
-        sub_samples = samples[list(tids)]
-        shape = sub_samples.shape #(sample,feat)
-        if int(shape[1]/2) >= shape[0]:
-            return 10000
-        features = sub_samples.T
-        total_estimated_error = 0.0
-        distrs = predictor.get_distributions(features)
-        total_estimated_error += np.sum(predictor.get_error_sample(distrs, features.T))/len(sub_samples)
-        return total_estimated_error
 
-    return error
-
+#other errors
 def mse_error(samples: np.ndarray):
     def error(tids):
         sub_samples = samples[list(tids)]

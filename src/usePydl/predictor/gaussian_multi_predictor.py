@@ -1,7 +1,7 @@
 from typing import List
 from src.usePydl.predictor.predictor_obj import Predictor
-from src.usePydl.error_fun import gaussian_error
-from src.usePydl.leaf import leaf_val, get_leaf_vals
+from src.usePydl.error_fun import predictor_error
+from src.usePydl.leaf import default_leaf_val
 from sklearn.mixture import GaussianMixture
 import numpy as np
 
@@ -12,8 +12,8 @@ class GaussianMultiPredictor(Predictor):
         self.samples = samples
         super().__init__(
             samples_bin=samples_bin,
-            error_fun=gaussian_error(self, samples),
-            leaf_val=leaf_val(self,samples),
+            error_fun=predictor_error(self, samples),
+            leaf_val=default_leaf_val(self,samples),
             max_depth=max_depth,
             min_sup=min_sup,
             time=time
@@ -24,7 +24,7 @@ class GaussianMultiPredictor(Predictor):
         gm = GaussianMixture(n_components=n_components, covariance_type='full')
         gm.fit(feature_array.reshape(-1, 1))
         return gm
-
+#TODO update
     def calc_norm_conf_each_sample(self, distributions: List[GaussianMixture], samples):
         features = samples.T  # (n_features, n_samples)
         log_likelihoods = np.zeros(samples.shape[0])
@@ -68,31 +68,3 @@ class GaussianMultiPredictor(Predictor):
         return np.array(samples_above_tresh)[:n]
 
 
-
-
-
-#GENERAL FUNCTIONS - prob estimation fucntions
-
-
-
-
-
-def calc_norm_conf_sample_x_feature(distributions, samples):
-    #TODO: note that this calculates for every feature type the PDF (Probability Density Function)
-    #TODO: but the features are not all continue features some or descrete.
-    #TODO: discrete features should get a discrete disctribution over them and calc PMF (Probability Mass Function)
-    #TODO: implement a predictor that uses a mix of distributions so discrete and cont feat can be mapped correctly
-    n_samples, n_features = samples.shape
-    features = samples.T  # shape (n_features, n_samples)
-    #compute max log‑likelihood each feature (=mean)
-    max_ll_per_feature = np.zeros(n_features)
-    for i, gm in enumerate(distributions):
-        mu = gm.means_[0, 0]
-        max_ll_per_feature[i] = gm.score_samples([[mu]])[0]
-    #FEATxSAMPLE matrix logs
-    log_likelihoods = np.zeros((n_features, n_samples))
-    for i, gm in enumerate(distributions):
-        log_likelihoods[i] = gm.score_samples(features[i].reshape(-1, 1))
-    #normilize
-    confidence = np.exp(log_likelihoods - max_ll_per_feature[:, np.newaxis])
-    return confidence.T  #shape (n_samples, n_features)
