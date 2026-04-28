@@ -25,46 +25,19 @@ class GaussianMultiPredictor(Predictor):
         gm.fit(feature_array.reshape(-1, 1))
         return gm
 #TODO update
-    def calc_norm_conf_each_sample(self, distributions: List[GaussianMixture], samples):
+
+    def calc_norm_conf_each_sample(self, distributions: List[GaussianMixture], samples: np.ndarray) -> np.ndarray:
         features = samples.T  # (n_features, n_samples)
         log_likelihoods = np.zeros(samples.shape[0])
-        log_likelihoods_max = np.zeros(samples.shape[0])  # array of feature length
+        log_likelihoods_max = 0.0
         for i, gm in enumerate(distributions):
-            # Log-likelihood for all samples
-            log_like = gm.score_samples(features[i].reshape(-1, 1))  # [ll1 ll2 ll3 ...]
-            # returns prob dens vals: pdf(x) = 1 / (σ * √(2π)) * exp( - (x - μ)² / (2σ²) )
-            # density of 2.5 as "2.5 times more confident"—it reflects sharper distribution.
-            log_likelihoods += log_like
+            log_likelihoods += gm.score_samples(features[i].reshape(-1, 1))
 
-            mu = gm.means_[0, 0]  # get max log-likelihood (at the mean) for normalizing to value [0,1]
-            ll_max = gm.score_samples([[mu]])[0]
-            log_likelihoods_max += ll_max  # is 1 value but np will map over entire array
-            # Normalise
-        confidence = np.exp(log_likelihoods - log_likelihoods_max)
-        return confidence
+            # peak likelihood: mean of the most weighted component
+            dominant_mean = gm.means_[np.argmax(gm.weights_)]
+            log_likelihoods_max += gm.score_samples(dominant_mean.reshape(1, -1))[0]
 
-    def _generate_new_leaf_samples(self, n, distributions: List[GaussianMixture], conf_tresh):
-        samples_above_tresh = []
-        while len(samples_above_tresh) < n:
-            features = []
-            for distr in distributions:
-                (gen, _) = distr.sample(n_samples=100)  # returns ([[10*[f1]],[10*[f2]],...] , Label)
-                feat = []
-                for point in gen:
-                    feat.append(point[0])
-                features.append(feat)
-            features = np.array(features)
-            good_features = []
-            z_prob_matrix = calc_norm_conf_sample_x_feature(distributions, features.T)
-            for i, feature in enumerate(z_prob_matrix.T):
-                indices = np.argsort(feature)
-                good_points = features[i, indices]
-                good_features.append(good_points)
-            samples = np.array(good_features).T
-            sample_prob = self.calc_norm_conf_each_sample(distributions, samples)
-            for i, prob in enumerate(sample_prob):
-                if prob >= conf_tresh:
-                    samples_above_tresh.append(samples[i])
-        return np.array(samples_above_tresh)[:n]
+        return np.exp(log_likelihoods - log_likelihoods_max)
+
 
 

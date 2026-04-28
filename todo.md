@@ -1,0 +1,3 @@
+- implement feature dependency check
+- implement predictor that can destinguish descrete and continue feature -> use different distributions
+- implement evalData section: sanity, discriminator, statistical, train on fake, test on real

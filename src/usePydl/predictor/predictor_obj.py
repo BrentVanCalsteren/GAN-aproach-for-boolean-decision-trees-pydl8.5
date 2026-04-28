@@ -43,7 +43,8 @@ class Predictor:
         else:
             raise ValueError(f"Unknown mode")
         for i in range(len(leafs)):
-            new_samples.extend(self._generate_new_leaf_samples(ns[i],distributions_x_leafs[i],conf_tresh))
+            if samples_in_leaf[i] > 3:
+                 new_samples.extend(self._generate_new_leaf_samples(ns[i],distributions_x_leafs[i],conf_tresh))
         return np.array(new_samples)
 
     def _generate_new_leaf_samples(self, n, distributions, conf_thresh):

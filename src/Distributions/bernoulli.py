@@ -16,7 +16,7 @@ class Bernoulli_Distr:
         self.log_prob_neg = np.log(1.0 - self.prob)
 
     def score_feature(self, feature):
-        feature = np.asarray(feature, dtype=np.float64).ravel()
+        feature = np.asarray(feature)
         return feature * self.log_prob + (1.0 - feature) * self.log_prob_neg
 
     def score_avg(self, feature):

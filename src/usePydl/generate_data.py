@@ -1,6 +1,6 @@
 from src.dataLoader.Dataset import *
 
-def generate_new_data(pred_type=None, try_splits = 1,n_samples= 1000,dataset_name="iris",y_index = None):
+def generate_new_data(pred_type=None, try_splits = 1,n_samples= 1000,dataset_name="iris",y_index = None,time=100,conf = 0.95):
     data_set = dataset(dataset_name=dataset_name, bin_length=-1)
     data_set.split_data_on_features(n_splits=try_splits)
     datas = data_set.get_data_at_split_depth(try_splits)
@@ -8,8 +8,8 @@ def generate_new_data(pred_type=None, try_splits = 1,n_samples= 1000,dataset_nam
         pred_types = ["uniform"] * len(datas)
     else:
         pred_types = [pred_type] * len(datas)
-    data_set.load_predictors(datas, pred_types, max_depth=4, time=100)
-    data_set.gen_new_samples_for_datalist(datas, n_samples, 0.9)
+    data_set.load_predictors(datas, pred_types, max_depth=3, time=time)
+    data_set.gen_new_samples_for_datalist(datas, n_samples, conf)
     data_level_0 = data_set.root_data
     if y_index:
         x, x_bin, x_gen, x_gen_bin, y, y_gen = split_x_y(data_level_0,y_index)

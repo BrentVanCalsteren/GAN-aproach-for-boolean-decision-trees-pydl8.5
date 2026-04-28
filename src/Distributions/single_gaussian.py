@@ -16,9 +16,9 @@ class SingleGaussian1D_distr:
             self.var = 1e-6
         self.log_scale = 0.5 * np.log(2 * np.pi * self.var)
 
-    def score_feature(self, feature):
-        feature = np.asarray(feature).ravel()
-        return -0.5 * ((feature - self.mean)**2 / self.var) - self.log_scale
+    def score_feature(self, feature):#can be array or single val
+        feature_arr = np.asarray(feature)
+        return -0.5 * ((feature_arr - self.mean)**2 / self.var) - self.log_scale
 
     def score_avg(self, feature):
         return np.mean(self.score_feature(feature))
@@ -26,3 +26,8 @@ class SingleGaussian1D_distr:
     def sample(self, n_samples=1, random_state=None):
         rng = np.random.RandomState(random_state)
         return self.mean + rng.randn(n_samples) * np.sqrt(self.var)
+
+    def sorted_samples(self, n: int) -> np.ndarray:
+        candidates = self.sample(n_samples=n)
+        ll = self.score_feature(candidates)
+        return candidates[np.argsort(-ll)]

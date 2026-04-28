@@ -69,27 +69,16 @@ class dataset:
         while current_level:
             parent_to_children = {}
             for child in current_level:
-                parent = child.parent_data
-                if parent is not None:
-                    parent_to_children.setdefault(parent, []).append(child)
+                if child.parent_data is not None:
+                    parent_to_children.setdefault(child.parent_data, []).append(child)
 
             if not parent_to_children:
                 break
 
             for parent, children in parent_to_children.items():
-                child_data_list = []
-                for child in children:
-                    gen = child.x_gen
-                    feat_idx = child.split_feature.feat_index
-                    split_val = child.split_feature.val
-                    left = gen[:, :feat_idx]
-                    right = gen[:, feat_idx:]
-                    col = np.full((gen.shape[0], 1), split_val)
-                    reconstructed = np.hstack([left, col, right])
-                    child_data_list.append(reconstructed)
-
-                parent.x_gen = np.vstack(child_data_list)
+                parent.x_gen = np.vstack([child.x_gen for child in children])
                 parent.set_bin_x_gen()
+
             current_level = list(parent_to_children.keys())
 
 
