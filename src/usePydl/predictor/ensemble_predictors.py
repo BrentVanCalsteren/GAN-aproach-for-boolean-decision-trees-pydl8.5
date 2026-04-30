@@ -69,13 +69,30 @@ class EnsemblePredictor(Predictor):
 
 
     def get_distr(self,feature_array:np.ndarray):
-        dist = Uniform_distr()
-        dist.fit(feature_array.reshape(-1,1))
+        #dist = Uniform_distr()
+        dist = SingleGaussian1D_distr()
+        dist.fit(feature_array.reshape(-1, 1))
         return dist
 
+    def calc_norm_conf_each_sample(self, distributions, samples):
+        features = samples.T  # (n_features, n_samples)
+        log_likelihoods = sum(
+            gm.score_feature(features[i])
+            for i, gm in enumerate(distributions)
+        )
+        log_likelihoods_max = sum(
+            float(gm.score_feature(np.array([gm.mean])))
+            for gm in distributions
+        )
+        return np.exp(log_likelihoods - log_likelihoods_max)
 
     # used in default error function
+"""
     def calc_norm_conf_each_sample(self, distributions: List[Uniform_distr], samples: np.ndarray):
         features = samples.T
         scores = np.array([dist.score_feature(features[i]) for i, dist in enumerate(distributions)]).T #shape scores (n_samples,n_features)
         return np.mean(scores, axis=1)
+
+    """
+
+#"""

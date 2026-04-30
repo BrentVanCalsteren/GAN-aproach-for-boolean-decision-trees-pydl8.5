@@ -119,13 +119,13 @@ def standardize_feature(arr):
         print("Already numeric.")
         return scale_array(np_arr)
     try:
-        y_num = np_arr.astype(float)
+        num_arr = np_arr.astype(float)
         print("Converted numeric strings to float.")
-        return scale_array(y_num)
+        return scale_array(num_arr)
     except (ValueError, TypeError):
-        pass
-
-    return scale_array(value_to_index_array(np_arr))
+        num_arr = value_to_index_array(np_arr).astype(float)
+        print("Converted chars to index")
+        return scale_array(num_arr)
 
 def value_to_index_array(np_arr):
     unique_values = np.unique(np_arr)
@@ -142,5 +142,5 @@ def scale_array(num_array):
     min_val = arr.min()
     max_val = arr.max()
     if max_val-min_val == 0:
-        return 0
+        return np.zeros(len(arr))
     return np.array((arr - min_val) / (max_val - min_val))

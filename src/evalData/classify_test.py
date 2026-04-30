@@ -8,11 +8,11 @@ from sklearn.metrics import accuracy_score, classification_report
 def eval_data():
     x, x_bin, x_gen, x_gen_bin, y, y_gen = generate_new_data(
         pred_type="ensemble",
-        dataset_name='wine_quality',
+        dataset_name='mushroom',
         try_splits=0,
         y_index = -1,
         time=300,
-        conf=0.9,
+        conf=0.95,
         n_samples=10000
     )
     print("result on real data")

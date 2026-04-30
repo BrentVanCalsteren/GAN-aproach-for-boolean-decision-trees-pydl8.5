@@ -9,7 +9,6 @@ from src.usePydl.predictor.mixed_predictor import MixedPredictor
 from src.usePydl.predictor.ensemble_predictors import EnsemblePredictor
 from src.dataLoader.feature_struct import FeatureStruct
 
-DISCRETE_LIMIT = 5
 MIN_SPLIT_NUMBER = 20
 
 class Data:
@@ -31,13 +30,14 @@ class Data:
     def __init__(self, feat_scaled,bin_length=-1,split_feature=None,parent_data=None,depth=0):
         self.depth = depth
         self.child_datas = []
-        self.discrete_feature_ids = check_discrete_features(feat_scaled)
+        self.x = feat_scaled.T
+        self.DISCRETE_LIMIT = int(self.x.shape[0]/20)
+        self.discrete_feature_ids = self.check_discrete_features(feat_scaled)
         self.split_feature = split_feature
         self.parent_data = parent_data
         if bin_length == -1:
             bin_length = calculate_bin_length(feat_scaled)
             print(f'bin_length is not given, choosing own lenght:{bin_length}')
-        self.x = feat_scaled.T
         self.x_bin, self.feature_bin_len,self.feature_clusters = binner.bin_convertion_2d(feat_scaled, max_bins=bin_length)
         self.shuffle_samples()
 
@@ -118,16 +118,18 @@ class Data:
             one_hots.append(binner.gen_one_hot_string(feature, self.feature_clusters[i]))
         self.x_gen_bin = np.array([binner.flatten_binary_strings(row) for row in np.array(one_hots).T])
 
+    def check_discrete_features(self, feat_scaled):
+        descrete_ids = []
+        for i, feature in enumerate(feat_scaled):
+            uniques = np.unique(feature)
+            if len(uniques) <= self.DISCRETE_LIMIT:
+                descrete_ids.append(i)
+        return descrete_ids
+
 
  #HELPERs
 
-def check_discrete_features(feat_scaled):
-    descrete_ids = []
-    for i, feature in enumerate(feat_scaled):
-        uniques = np.unique(feature)
-        if len(uniques) <= DISCRETE_LIMIT:
-            descrete_ids.append(i)
-    return descrete_ids
+
 
 def get_min_feat_index(features):
     min_indx = 0

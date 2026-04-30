@@ -60,8 +60,11 @@ class dataset:
             data.load_predictor(predictor_types[i],max_depth=max_depth,time=time)
 
     def gen_new_samples_for_datalist(self, datas:List[Data], n=100, conf=0.8):
+        n_max = len(self.root_data.x)
         for data in datas:
-            data.generate_more_data(n=n,conf=conf)
+            n_data = len(data.x)
+            n_split = int((n_data / n_max) * n)
+            data.generate_more_data(n=n_split,conf=conf)
         self.gen_data_for_parents(datas)
 
     def gen_data_for_parents(self, datas: List[Data]):
