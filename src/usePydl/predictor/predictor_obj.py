@@ -5,8 +5,12 @@ from src.usePydl.leaf import get_leaf_vals
 class Predictor:
     def __init__(self,samples_bin,error_fun,leaf_val,max_depth,min_sup,time):
         self.samples_bin = samples_bin
-        self.predictor = DL85Predictor(error_function=error_fun,leaf_value_function=leaf_val,
-                                       max_depth=max_depth,min_sup=min_sup, time_limit=time)
+        self.predictor = DL85Predictor(error_function=error_fun,
+                                       leaf_value_function=leaf_val,
+                                       max_depth=max_depth,
+                                       min_sup=min_sup,
+                                       time_limit=time,
+                                       max_error=np.inf)
     def generate_tree(self):
         self.predictor.fit(self.samples_bin)
 

@@ -6,7 +6,10 @@ def default_leaf_val(predictor, samples):
         features = np.array(samples[list(tids)]).T
         print(features.shape)
         distributions =predictor.get_distributions(features)
-        return {"count":len(features),"distr":distributions}
+        return {"count":len(list(tids)),
+                "distr":distributions,
+                "sample_ids": list(tids)
+                }
     return value
 
 def empty_val():

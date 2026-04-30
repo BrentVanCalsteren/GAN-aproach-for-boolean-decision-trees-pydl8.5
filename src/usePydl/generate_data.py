@@ -1,6 +1,6 @@
 from src.dataLoader.Dataset import *
 
-def generate_new_data(pred_type=None, try_splits = 1,n_samples= 1000,dataset_name="iris",y_index = None,time=100,conf = 0.95):
+def generate_new_data(pred_type=None, try_splits = 1,n_samples= 1000,dataset_name="iris",y_index = None,time=100,conf = 0.8):
     data_set = dataset(dataset_name=dataset_name, bin_length=-1)
     data_set.split_data_on_features(n_splits=try_splits)
     datas = data_set.get_data_at_split_depth(try_splits)

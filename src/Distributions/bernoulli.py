@@ -15,7 +15,7 @@ class Bernoulli_Distr:
         self.log_prob = np.log(self.prob)
         self.log_prob_neg = np.log(1.0 - self.prob)
 
-    def score_feature(self, feature):
+    def score_feature(self, feature): #can be array or single val
         feature = np.asarray(feature)
         return feature * self.log_prob + (1.0 - feature) * self.log_prob_neg
 
@@ -25,3 +25,8 @@ class Bernoulli_Distr:
     def sample(self, n_samples=1, random_state=None):
         rng = np.random.RandomState(random_state)
         return (rng.rand(n_samples) < self.prob).astype(np.float64)
+
+    def sorted_samples(self, n: int) -> np.ndarray:
+        candidates = self.sample(n_samples=n)
+        ll = self.score_feature(candidates)
+        return candidates[np.argsort(-ll)]

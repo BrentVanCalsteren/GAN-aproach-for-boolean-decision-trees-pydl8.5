@@ -6,8 +6,8 @@ def predictor_error(predictor, samples: np.ndarray):
     def error(tids):
         sub_samples = samples[list(tids)]
         n_samples, n_features = sub_samples.shape
-        if n_features // 2 >= n_samples:
-            return np.inf
+        if n_features//2 >= n_samples or n_samples < 2:
+            return 10e6
         features = sub_samples.T
         distrs = predictor.get_distributions(features)
         return np.sum(predictor.get_error_sample(distrs, sub_samples)) / n_samples

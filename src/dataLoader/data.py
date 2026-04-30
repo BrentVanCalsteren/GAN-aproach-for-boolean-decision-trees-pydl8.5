@@ -1,11 +1,16 @@
+from typing import List
+
 import numpy as np
 import src.binaryConvertion.binner as binner
 from src.usePydl.predictor.gaussian_multi_predictor import GaussianMultiPredictor
 from src.usePydl.predictor.uniform_predictor import UNiPredictor
 from src.usePydl.predictor.gaussian_1D_predictor import Gaussian1DPredictor
+from src.usePydl.predictor.mixed_predictor import MixedPredictor
+from src.usePydl.predictor.ensemble_predictors import EnsemblePredictor
 from src.dataLoader.feature_struct import FeatureStruct
 
 DISCRETE_LIMIT = 5
+MIN_SPLIT_NUMBER = 20
 
 class Data:
     x = None
@@ -40,8 +45,11 @@ class Data:
         if self.depth == target_depth:
             data_array.append(self)
         elif self.depth < target_depth:
-            for child in self.child_datas:
-                child.get_data_at_depth(data_array, target_depth)
+            if self.child_datas:
+                for child in self.child_datas:
+                    child.get_data_at_depth(data_array, target_depth)
+            else:
+                data_array.append(self)
 
     def split_data_on_index(self,index=None):
         features = self.x.T
@@ -51,6 +59,9 @@ class Data:
             print(f'INDEX FOUND: {index}')
         if index not in self.discrete_feature_ids:
             print(f"Can't split data on continue val")
+            return
+        if self.x.shape[0] < MIN_SPLIT_NUMBER:
+            print(f"Can't split data further, too few samples")
             return
         split_features = features[index, :]
         reduced = np.delete(features, index, axis=0)
@@ -74,14 +85,18 @@ class Data:
         self.x = self.x[p]
         self.x_bin = self.x_bin[p]
 
-    def load_predictor(self,predictor_name,max_depth=3,min_sup=1,time=100):
+    def load_predictor(self, predictor_type:str, max_depth=3, min_sup=1, time=100):
         print('loading predictor...')
-        if predictor_name == "gaussian_multi":
+        if predictor_type == "gaussian_multi":
             self.predictor = GaussianMultiPredictor(self.x,self.x_bin,max_depth=max_depth,min_sup=min_sup,time=time)
-        elif predictor_name == "uniform":
+        elif predictor_type == "uniform":
             self.predictor = UNiPredictor(self.x,self.x_bin,max_depth=max_depth,min_sup=min_sup,time=time)
-        elif predictor_name == "gaussian_1D":
+        elif predictor_type == "gaussian_1D":
             self.predictor = Gaussian1DPredictor(self.x, self.x_bin, max_depth=max_depth, min_sup=min_sup, time=time)
+        elif predictor_type == "mixed":
+            self.predictor = MixedPredictor(self.x, self.x_bin,discrete_feature_ids=self.discrete_feature_ids, max_depth=max_depth, min_sup=min_sup, time=time)
+        elif predictor_type == "ensemble":
+            self.predictor = EnsemblePredictor(self.x,self.x_bin)
         else:
             raise Exception('predictor type not found')
 
