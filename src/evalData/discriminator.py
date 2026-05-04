@@ -1,0 +1,208 @@
+import torch
+import torch.nn as nn
+import torch.optim as optim
+from sklearn.metrics import roc_auc_score
+from torch.utils.data import DataLoader, TensorDataset
+import numpy as np
+
+
+class NNnetwork(nn.Module):
+    def __init__(self, input_dim, hidden_dims=(128, 64), dropout_rate=0.2):
+        super().__init__()
+        layers = []
+        prev_dim = input_dim
+
+        for hidden_dim in hidden_dims:
+            layers.extend([
+                nn.Linear(prev_dim, hidden_dim),
+                nn.BatchNorm1d(hidden_dim),
+                nn.ReLU(),
+                nn.Dropout(dropout_rate)])
+
+            prev_dim = hidden_dim
+
+        layers.append(nn.Linear(prev_dim, 1))
+        layers.append(nn.Sigmoid())
+        self.network = nn.Sequential(*layers)
+
+    def forward(self, x):
+        return self.network(x)
+
+########################################
+#nn discriminator
+######################################
+class NNDiscriminator:
+    def __init__(
+            self,
+            hidden_dims=(128, 64),
+            dropout_rate=0.2,
+            learning_rate=0.001,
+            batch_size=128,
+            epochs=100,
+            patience=10,
+            device=None,
+            random_state=None
+    ):
+        self.hidden_dims = hidden_dims
+        self.dropout_rate = dropout_rate
+        self.lr = learning_rate
+        self.batch_size = batch_size
+        self.epochs = epochs
+        self.patience = patience
+        self.random_state = random_state
+
+        #get pc
+        if device is None:
+            self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        else:
+            self.device = torch.device(device)
+
+        self.model = None
+        self.history = {'train_loss': [], 'val_loss': [], 'val_auc': []}
+
+    def _set_seed(self):
+        if self.random_state is not None:
+            torch.manual_seed(self.random_state)
+            np.random.seed(self.random_state)
+
+    def _create_data_loaders(self, X_real, X_gen, val_size=0.2):
+        # Combine and label data
+        n_real = len(X_real)
+        n_gen = len(X_gen)
+
+        X = np.vstack([X_real, X_gen])
+        y = np.hstack([np.ones(n_real), np.zeros(n_gen)]).astype(np.float32) #labels-> 1D
+
+        #Convert to tensors
+        X_tensor = torch.FloatTensor(X)
+        y_tensor = torch.FloatTensor(y).reshape(-1, 1)
+
+        #Shuffle and split
+        indices = np.random.permutation(len(X))
+        val_size_n = int(len(X) * val_size)
+        train_idx = indices[val_size_n:]
+        val_idx = indices[:val_size_n]
+
+        train_dataset = TensorDataset(X_tensor[train_idx], y_tensor[train_idx])
+        val_dataset = TensorDataset(X_tensor[val_idx], y_tensor[val_idx])
+
+        train_loader = DataLoader(train_dataset, batch_size=self.batch_size, shuffle=True)
+        val_loader = DataLoader(val_dataset, batch_size=self.batch_size, shuffle=False)
+        return train_loader, val_loader
+
+    def _train_epoch(self, train_loader, criterion, optimizer):
+        self.model.train()
+        total_loss = 0
+
+        for X_batch, y_batch in train_loader:
+            X_batch, y_batch = X_batch.to(self.device), y_batch.to(self.device)
+            optimizer.zero_grad()
+            outputs = self.model(X_batch)
+            loss = criterion(outputs, y_batch)
+            loss.backward()
+            optimizer.step()
+            total_loss += loss.item() * len(X_batch)
+        return total_loss / len(train_loader.dataset)
+
+    def _validate(self, val_loader, criterion):
+        self.model.eval()
+        total_loss = 0
+        all_preds = []
+        all_labels = []
+
+        with torch.no_grad():
+            for X_batch, y_batch in val_loader:
+                X_batch, y_batch = X_batch.to(self.device), y_batch.to(self.device)
+                outputs = self.model(X_batch)
+                loss = criterion(outputs, y_batch)
+                total_loss += loss.item() * len(X_batch)
+                all_preds.extend(outputs.cpu().numpy().flatten())
+                all_labels.extend(y_batch.cpu().numpy().flatten())
+
+        val_loss = total_loss / len(val_loader.dataset)
+        val_auc = roc_auc_score(all_labels, all_preds) # Calculate AUC
+
+        return val_loss, val_auc
+
+    def fit(self, X_real, X_gen, verbose=True):
+        self._set_seed()
+        input_dim = X_real.shape[1]
+        self.model = NNnetwork(input_dim,self.hidden_dims,self.dropout_rate).to(self.device)
+        train_loader, val_loader = self._create_data_loaders(X_real, X_gen)
+
+        criterion = nn.BCELoss()
+        optimizer = optim.Adam(self.model.parameters(), lr=self.lr)
+
+        best_val_loss = float('inf')
+        patience_counter = 0
+        best_model_state = None
+
+        for epoch in range(self.epochs):
+            # Training
+            train_loss = self._train_epoch(train_loader, criterion, optimizer)
+
+            # Validation
+            val_loss, val_auc = self._validate(val_loader, criterion)
+
+            # Store history
+            self.history['train_loss'].append(train_loss)
+            self.history['val_loss'].append(val_loss)
+            self.history['val_auc'].append(val_auc)
+
+            if verbose and (epoch + 1) % 10 == 0:
+                print(f"Epoch {epoch + 1}/{self.epochs} - "
+                      f"Train Loss: {train_loss:.4f}, "
+                      f"Val Loss: {val_loss:.4f}, "
+                      f"Val AUC: {val_auc:.4f}")
+
+            # Early stopping check
+            if val_loss < best_val_loss:
+                best_val_loss = val_loss
+                patience_counter = 0
+                best_model_state = self.model.state_dict().copy()
+            else:
+                patience_counter += 1
+                if patience_counter >= self.patience:
+                    if verbose:
+                        print(f"Early stopping at epoch {epoch + 1}")
+                    break
+
+        # Restore best model
+        if best_model_state is not None:
+            self.model.load_state_dict(best_model_state)
+        return self
+
+    def predict_proba(self, X):
+        self.model.eval()
+        X_tensor = torch.FloatTensor(X).to(self.device)
+
+        with torch.no_grad():
+            outputs = self.model(X_tensor)
+        return outputs.cpu().numpy().flatten()
+
+    def score(self, X_real, X_gen):
+        real_probs = self.predict_proba(X_real)
+        gen_probs = self.predict_proba(X_gen)
+
+        # Create labels
+        y_true = np.hstack([np.ones(len(real_probs)), np.zeros(len(gen_probs))])
+        y_pred = np.hstack([real_probs, gen_probs])
+        return roc_auc_score(y_true, y_pred)
+
+    def get_training_history(self):
+        import pandas as pd
+        return pd.DataFrame({
+            'epoch': range(1, len(self.history['train_loss']) + 1),
+            'train_loss': self.history['train_loss'],
+            'val_loss': self.history['val_loss'],
+            'val_auc': self.history['val_auc']
+        })
+
+########################################
+#pydl discripinator -> classifier model
+######################################
+
+class DLDiscriminator:
+    pass
+#TODO complete disciminator
+

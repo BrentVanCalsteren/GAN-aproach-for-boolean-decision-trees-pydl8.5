@@ -1,1 +1,0 @@
-#try to train a classifier that can seperate real and fake data

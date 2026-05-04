@@ -1,3 +1,4 @@
-- implement feature dependency check
-- implement predictor that can destinguish descrete and continue feature -> use different distributions
-- implement evalData section: sanity, discriminator, statistical, train on fake, test on real
+- implement predictors with feature dependency (gmm can be extended)
+- mixed/ensemble predictor implemented ->done
+- evalData further worked on -> need to complete some todos ->working on
+- convert gen features back to discrete if discrete -> next step

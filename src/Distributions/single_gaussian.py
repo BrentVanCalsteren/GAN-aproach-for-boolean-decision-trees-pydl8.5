@@ -5,9 +5,6 @@ class SingleGaussian1D_distr:
     var = None
     log_scale = None
 
-    def __init__(self):
-        return
-
     def fit(self, points):
         points = np.asarray(points, dtype=np.float64).ravel()
         self.mean = points.mean()

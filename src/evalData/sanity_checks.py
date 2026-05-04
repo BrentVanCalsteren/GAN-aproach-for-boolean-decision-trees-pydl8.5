@@ -1,27 +1,25 @@
 from sklearn.neighbors import NearestNeighbors
 import numpy as np
 
-def data_mismatch(self, real_df, synth_df):
+def data_dim_type_mismatch(real_samples:np.ndarray, gen_samples:np.ndarray):
     """Score: 0 = no mismatch, 1 = complete mismatch."""
-    if real_df.shape[1] != synth_df.shape[1]:
+    real_feat = real_samples.T
+    gen_feat = gen_samples.T
+    if real_feat.shape[0] != gen_feat.shape[0]:
         raise ValueError("Incompatible number of features")
     diffs = 0
-    for col in real_df.columns:
-        if real_df[col].dtype != synth_df[col].dtype:
+    for i, _ in enumerate(real_feat):
+        if real_feat[i].dtype != gen_feat[i].dtype:
             diffs += 1
-    return diffs / (len(real_df.columns) + 1)  # Following synthcity's logic
+    return diffs / (real_feat.shape[0] + 1)
 
 
-def common_rows_proportion(self, real_df, synth_df):
-    """Score: 0 = no common rows, 1 = all real rows leaked."""
-    real_hashes = real_df.apply(lambda x: hash(tuple(x)), axis=1)
-    synth_hashes = synth_df.apply(lambda x: hash(tuple(x)), axis=1)
-    common = len(set(real_hashes).intersection(set(synth_hashes)))
-    return common / len(real_df)
-
-
-def nearest_syn_neighbor_distance(self, real_array, synth_array):
+def nearest_neighbor_check(real_samples:np.ndarray, gen_samples:np.ndarray):
     """Average distance from real samples to nearest synthetic neighbor."""
-    estimator = NearestNeighbors(n_neighbors=1).fit(synth_array)
-    dist, _ = estimator.kneighbors(real_array, return_distance=True)
+    estimator = NearestNeighbors(n_neighbors=1).fit(gen_samples)
+    dist, _ = estimator.kneighbors(real_samples, return_distance=True)
     return np.mean(dist)
+
+def check_discrete_or_continue_data(real_samples:np.ndarray, gen_samples:np.ndarray):
+    #TODO: still need to make gen samples back discrete when the original vals are discrete
+    pass
