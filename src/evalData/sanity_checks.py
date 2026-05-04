@@ -1,6 +1,13 @@
 from sklearn.neighbors import NearestNeighbors
 import numpy as np
 
+def do_all_sanity_checks(real_samples,generated_samples):
+    result = data_dim_type_mismatch(real_samples,generated_samples)
+    print(f"sanity type mismatch: {result}")
+    result = nearest_neighbor_check(real_samples,generated_samples)
+    print(f"nearest neighbour avg dist feat: {result}")
+
+
 def data_dim_type_mismatch(real_samples:np.ndarray, gen_samples:np.ndarray):
     """Score: 0 = no mismatch, 1 = complete mismatch."""
     real_feat = real_samples.T

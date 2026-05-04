@@ -12,7 +12,31 @@ from sklearn.neural_network import MLPClassifier
 
 N_BINS = 10
 
-def get_frequency(real_feat:np.ndarray, gen_feat:np.ndarray):
+def do_all_statistic_tests(real_samples:np.ndarray, gen_samples:np.ndarray):
+    score = jensenshannon_distance(real_samples,gen_samples)
+    print(f"jensenshannon_distance: {score}")
+    score = chi_squared_test(real_samples,gen_samples)
+    print(f"chi_squared_test: {score}")
+    score = kolmogorov_smirnov_test(real_samples,gen_samples)
+    print(f"kolmogorov_smirnov_test: {score}")
+    score = inv_kl_divergence(real_samples,gen_samples)
+    print(f"inv_kl_divergence: {score}")
+    score = max_mean_discrepancy(real_samples,gen_samples)
+    print(f"max_mean_discrepancy: {score}")
+    score = wasserstein_distance(real_samples,gen_samples)
+    print(f"wasserstein_distance: {score}")
+    score = feature_corr_diff(real_samples,gen_samples)
+    print(f"feature_corr_diff: {score}")
+    score = detection_linear(real_samples,gen_samples)
+    print(f"detection_linear: {score}")
+    score = detection_mlp(real_samples,gen_samples)
+    print(f"detection_mlp: {score}")
+    score = detection_gmm(real_samples,gen_samples)
+    print(f"detection_gmm: {score}")
+    score = detection_xgb(real_samples,gen_samples)
+    print(f"detection_xgb: {score}")
+
+def _get_frequency(real_feat:np.ndarray, gen_feat:np.ndarray):
     """Helper to compute aligned histograms for real and synthetic data."""
     freqs = {}
     for i,_ in enumerate(real_feat):
@@ -21,8 +45,8 @@ def get_frequency(real_feat:np.ndarray, gen_feat:np.ndarray):
         real_binned = pd.cut(real_feat[i], bins=bins)
         gen_binned = pd.cut(gen_feat[i], bins=bins)
 
-        real_counts = real_binned.value_counts(normalize=True)
-        synth_counts = gen_binned.value_counts(normalize=True)
+        real_counts = real_binned.value_counts()
+        synth_counts = gen_binned.value_counts()
 
         # Align
         all_labels = real_counts.index.union(synth_counts.index)
@@ -36,7 +60,7 @@ def jensenshannon_distance(real_samples:np.ndarray, gen_samples:np.ndarray):
     """Average Jensen-Shannon distance (0 = identical)."""
     real_feat = real_samples.T
     gen_feat = gen_samples.T
-    freqs = get_frequency(real_feat, gen_feat)
+    freqs = _get_frequency(real_feat, gen_feat)
     res = []
     for i,_ in enumerate(real_feat):
         gt_freq, synth_freq = freqs[i]
@@ -49,7 +73,7 @@ def chi_squared_test(real_samples:np.ndarray, gen_samples:np.ndarray):
     """Average p-value of chi-squared test (higher = more similar)."""
     real_feat = real_samples.T
     gen_feat = gen_samples.T
-    freqs = get_frequency(real_feat, gen_feat)
+    freqs = _get_frequency(real_feat, gen_feat)
     res = []
     for i,_ in enumerate(real_feat):
         gt_freq, synth_freq = freqs[i]
@@ -75,7 +99,7 @@ def inv_kl_divergence(real_samples:np.ndarray, gen_samples:np.ndarray):
     """Average inverse KL divergence (1 = identical, 0 = different)."""
     real_feat = real_samples.T
     gen_feat = gen_samples.T
-    freqs = get_frequency(real_feat, gen_feat)
+    freqs = _get_frequency(real_feat, gen_feat)
     res = []
     for i,_ in enumerate(real_feat):
         gt_freq, synth_freq = freqs[i]
@@ -152,14 +176,14 @@ def feature_corr_diff(real_samples:np.ndarray, gen_samples:np.ndarray):
 ### function/disctribution detection
 ###################################"
 
-def eval_with_model(self, model, real_samples:np.ndarray, gen_samples:np.ndarray, **model_args):
+def eval_with_model(model, real_samples:np.ndarray, gen_samples:np.ndarray, **model_args):
     labels_real = np.zeros(real_samples.shape[0])
     labels_gen = np.ones(gen_samples.shape[0])
 
     data = np.concatenate([real_samples, gen_samples])
     labels = np.concatenate([labels_real, labels_gen])
 
-    skf = StratifiedKFold(n_splits=self.n_folds, shuffle=True, random_state=self.random_state)
+    skf = StratifiedKFold(n_splits=N_BINS, shuffle=True, random_state=np.random.randint(1000))
     auc_scores = []
     for train_idx, test_idx in skf.split(data, labels):
         train_data, test_data = data[train_idx], data[test_idx]
@@ -174,17 +198,15 @@ def eval_with_model(self, model, real_samples:np.ndarray, gen_samples:np.ndarray
 
 def detection_linear(real_samples:np.ndarray, gen_samples:np.ndarray):
     """AUC ROC score (0 = indistinguishable)."""
-    return eval_with_model(LogisticRegression, real_samples, gen_samples,
-                                            solver='lbfgs', max_iter=1000)
+    return eval_with_model(model=LogisticRegression,real_samples= real_samples,gen_samples= gen_samples,solver='lbfgs', max_iter=1000)
 
 def detection_mlp(real_samples:np.ndarray, gen_samples:np.ndarray):
     """AUC ROC score (0 = indistinguishable)."""
-    return eval_with_model(MLPClassifier, real_samples, gen_samples,
-                                            hidden_layer_sizes=(100,), max_iter=500)
+    return eval_with_model(model=MLPClassifier,real_samples= real_samples,gen_samples= gen_samples,hidden_layer_sizes=(100,), max_iter=500)
 
 def detection_xgb(real_samples:np.ndarray, gen_samples:np.ndarray):
     """AUC ROC score (0 = indistinguishable)."""
-    return eval_with_model(XGBClassifier, real_samples, gen_samples)
+    return eval_with_model(model=XGBClassifier,real_samples= real_samples,gen_samples= gen_samples)
 
 def detection_gmm(real_samples:np.ndarray, gen_samples:np.ndarray):
     """Log-likelihood-based detection score (0 = indistinguishable)."""

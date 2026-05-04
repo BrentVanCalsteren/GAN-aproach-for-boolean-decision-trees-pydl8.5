@@ -3,6 +3,10 @@ import torch.nn as nn
 import torch.optim as optim
 from sklearn.metrics import roc_auc_score
 from torch.utils.data import DataLoader, TensorDataset
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import accuracy_score, classification_report
+from pydl85 import DL85Classifier
+import random
 import numpy as np
 
 
@@ -187,7 +191,7 @@ class NNDiscriminator:
         # Create labels
         y_true = np.hstack([np.ones(len(real_probs)), np.zeros(len(gen_probs))])
         y_pred = np.hstack([real_probs, gen_probs])
-        return roc_auc_score(y_true, y_pred)
+        return y_true.astype(int), y_pred.astype(int)
 
     def get_training_history(self):
         import pandas as pd
@@ -203,6 +207,35 @@ class NNDiscriminator:
 ######################################
 
 class DLDiscriminator:
-    pass
+    def __init__(self, real_samples:np.ndarray, gen_samples:np.ndarray):
+        x = np.vstack([real_samples, gen_samples])
+        y = np.hstack([np.ones(real_samples.shape[0]), np.zeros(gen_samples.shape[0])]).astype(np.float32)
+        self.x_train, self.x_test, self.y_train, self.y_test = split_train_test(x, y, test_size=0.2)
+
+    def classify(self):
+        classify_test_pydl(x_train=self.x_train,x_test=self.x_test,y_train=self.y_train,y_test=self.y_test)
+
+
+def classify_test_pydl(x_train, x_test, y_train, y_test):
+    clasfi = create_classifier_default(
+        x_bin=x_train, y=y_train, max_depth=4, min_sup=1, time=300)
+    y_pred_test = clasfi.predict(x_test)
+    accuracy = accuracy_score(y_test, y_pred_test)
+    print(f"Accuracy: {accuracy:.4f}")
+    print("\nClassification Report:")
+    print(classification_report(y_test, y_pred_test))
+
+def create_classifier_default(x_bin,y,max_depth=3,min_sup=2,time=100):
+    clasfi = DL85Classifier(max_depth=max_depth,min_sup=min_sup, time_limit=time)
+    clasfi.fit(x_bin, y)
+    return clasfi
+
+def split_train_test(x, y, test_size=0.2):
+    indices = np.random.permutation(len(x))
+    x_shuffled = x[indices]
+    y_shuffled = y[indices]
+    x_train, x_test, y_train, y_test = train_test_split(x_shuffled, y_shuffled, test_size=test_size,
+                                                        random_state=random.randint(1, 100))
+    return x_train, x_test, y_train, y_test
 #TODO complete disciminator
 

@@ -31,7 +31,7 @@ class Data:
         self.depth = depth
         self.child_datas = []
         self.x = feat_scaled.T
-        self.DISCRETE_LIMIT = int(self.x.shape[0]/20)
+        self.DISCRETE_LIMIT = self.x.shape[0]//20
         self.discrete_feature_ids = self.check_discrete_features(feat_scaled)
         self.split_feature = split_feature
         self.parent_data = parent_data
@@ -105,8 +105,24 @@ class Data:
        if self.predictor is None:
            raise Exception("predictor cannot be None")
        else:
-            self.x_gen = self.predictor.generate_new_data(n_new_samples=n,conf_tresh=conf)
+            x_gen = self.predictor.generate_new_data(n_new_samples=n,conf_tresh=conf)
+            self.x_gen = self.make_discrete(x_gen)
             self.set_bin_x_gen()
+
+    def make_discrete(self, x_gen):
+        features_gen = x_gen.T
+        features_real = self.x.T
+        converted_features = []
+        for i,feature in enumerate(features_gen):
+            if i in self.discrete_feature_ids:
+                uniques = np.unique(features_real[i])
+                conv_feature = []
+                for f in feature:
+                    dists = np.abs(uniques - f)
+                    conv_feature.append(uniques[np.argmin(dists)])
+                converted_features.append(conv_feature)
+            else: converted_features.append(feature)
+        return np.array(converted_features).T
 
 
     def set_bin_x_gen(self):

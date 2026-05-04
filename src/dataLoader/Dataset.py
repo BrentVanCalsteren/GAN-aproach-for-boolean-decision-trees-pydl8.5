@@ -61,6 +61,7 @@ class dataset:
 
     def gen_new_samples_for_datalist(self, datas:List[Data], n=100, conf=0.8):
         n_max = len(self.root_data.x)
+        if not n or n == -1: n = n_max
         for data in datas:
             n_data = len(data.x)
             n_split = int((n_data / n_max) * n)
