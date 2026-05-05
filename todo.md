@@ -2,3 +2,4 @@
 - mixed/ensemble predictor implemented ->done
 - evalData further worked on -> need to complete some todos ->working on
 - convert gen features back to discrete if discrete -> next step
+- check sim binary feature's -> permuation of eachother (plus compact were can)
