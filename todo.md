@@ -1,5 +1,6 @@
 - implement predictors with feature dependency (gmm can be extended)
 - mixed/ensemble predictor implemented ->done
+- scramble the features of generated samples a bit more
 - evalData further worked on -> need to complete some todos ->working on
 - convert gen features back to discrete if discrete -> next step
 - check sim binary feature's -> permuation of eachother (plus compact were can)

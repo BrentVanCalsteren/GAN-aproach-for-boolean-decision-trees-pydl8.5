@@ -47,7 +47,7 @@ class Predictor:
         else:
             raise ValueError(f"Unknown mode")
         for i in range(len(leafs)):
-            if samples_in_leaf[i] > 3:
+            #if samples_in_leaf[i] > 3:
                  new_samples.extend(self._generate_new_leaf_samples(ns[i],distributions_x_leafs[i],conf_tresh))
         return np.array(new_samples)
 
@@ -58,7 +58,9 @@ class Predictor:
             samples = gen_feats.T  #(100, n_features)
             confidence = self.calc_norm_conf_each_sample(distributions, samples)
             samples_above_thresh.extend(samples[confidence >= conf_thresh])
-        return np.array(samples_above_thresh)[:n]
+        arr = np.array(samples_above_thresh)[:n]
+        clipped = np.clip(arr, 0, 1)
+        return clipped
 
     def get_error_sample(self, distributions, samples):
         error = 1 - self.calc_norm_conf_each_sample(distributions, samples)
