@@ -9,11 +9,12 @@ class dataset:
     samples_complete = None
     samples_missing = None
     root_data = None
-    active_splits = []
+    active_datas = None
 
 
 
     def __init__(self,**kwargs):
+        self.active_datas = []
         self.reload_data(**kwargs)
 
 
@@ -23,6 +24,7 @@ class dataset:
         self.samples_missing = loaded_data.get_x_missing()
         features_scaled = loader.standardize_2d_features(self.samples_complete.T)
         self.root_data = Data(feat_scaled=features_scaled,bin_length=bin_length)
+        self.active_datas = [self.root_data]
 
     def split_data_on_features(self, n_splits=1, feature_splits=None):
         if feature_splits is None:
@@ -51,20 +53,13 @@ class dataset:
             print("Datas is empty")
         return datas
 
-    def load_predictors(self,datas:List[Data], predictor_types: List[str],max_depth=3,time=100):
-        if len(predictor_types) != len(datas):
-            print("Number of predictors does not match number of datas")
-        if not datas:
-            print("Datas is empty")
-        for i, data in enumerate(datas):
-            data.load_predictor(predictor_types[i],max_depth=max_depth,time=time)
-
-    def gen_new_samples_for_datalist(self, datas:List[Data], n=100, conf=0.8):
+    def gen_samples(self, n_samples=100, conf=0.8):
+        datas = self.active_datas
         n_max = len(self.root_data.x)
-        if not n or n == -1: n = n_max
+        if not n_samples or n_samples == -1: n_samples = n_max
         for data in datas:
             n_data = len(data.x)
-            n_split = int((n_data / n_max) * n)
+            n_split = int((n_data / n_max) * n_samples)
             data.generate_more_data(n=n_split,conf=conf)
         self.gen_data_for_parents(datas)
 
@@ -85,11 +80,54 @@ class dataset:
 
             current_level = list(parent_to_children.keys())
 
+    def set_active_depth(self, depth):
+        self.active_datas = self.get_data_at_split_depth(depth)
+
+    def load_predictors(self,predictor_types: List[str] or str,max_depth=3,time=100):
+        if isinstance(predictor_types, str):
+            for data in self.active_datas:
+                data.load_predictor(predictor_types, max_depth=max_depth, time=time)
+        else:
+            if len(predictor_types) <= len(self.active_datas): print("Number of predictors given needs to be atleast as long as active_datas")
+            for i, data in enumerate(self.active_datas):
+                data.load_predictor(predictor_types[i],max_depth=max_depth,time=time)
+
+    def get_real_samples(self,y_index: int =None):
+        return self.split_x_y(mode="real",y_index=y_index)
+
+    def get_gen_samples(self,y_index: int =None):
+        return self.split_x_y(mode="gen", y_index=y_index)
 
 
 
+    def split_x_y(self,mode:str, y_index: int=None):
+        if mode == "real":
+            if y_index:
+                x = self.root_data.x[:, :y_index]
+                x_bin = self.root_data.x_bin[:, :-self.root_data.feature_bin_len[y_index]]
+                y_real = self.root_data.x[:, y_index]
+                y = value_to_index(y_real)
+                return x,x_bin,y
+            else:
+                return self.root_data.x,self.root_data.x_bin, None
+        elif mode == "gen":
+            if y_index:
+                x_gen = self.root_data.x_gen[:, :y_index]
+                x_gen_bin = self.root_data.x_gen_bin[:, :-self.root_data.feature_bin_len[y_index]]
+                y_gen = self.root_data.x_gen[:, y_index]
+                y_gen = value_to_index(y_gen)
+                return x_gen,x_gen_bin,y_gen
+            else:
+                return self.root_data.x_gen, self.root_data.x_gen_bin, None
+        else:
+            raise NotImplementedError
 
 
 
-
+def value_to_index(array):
+    unique_values = np.unique(array)
+    indeces = np.zeros(array.shape)
+    for i, val in enumerate(unique_values):
+        indeces[array==val] = i
+    return indeces
 

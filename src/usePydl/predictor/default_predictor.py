@@ -4,7 +4,7 @@ from sklearn.mixture import GaussianMixture
 from src.usePydl.error_fun import mse_error
 import numpy as np
 
-from src.usePydl.leaf import empty_leave_val
+from src.usePydl.leaf import default_leaf_val
 
 
 class DefaultPredictor:
@@ -18,7 +18,7 @@ class DefaultPredictor:
             max_depth=max_depth,
             min_sup=min_sup,
             error_function=mse_error(samples),
-            leaf_value_function=empty_leave_val(),
+            leaf_value_function=default_leaf_val(),
         )
         self.generate_tree()
 

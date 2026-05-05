@@ -1,6 +1,6 @@
 #train on fake, test on real
 from pydl85 import DL85Classifier
-from src.usePydl.generate_data import generate_new_data
+from src.usePydl.generate_data import open_dataset
 from sklearn.model_selection import train_test_split
 import random
 from sklearn.metrics import accuracy_score, classification_report
@@ -11,51 +11,35 @@ import warnings
 warnings.filterwarnings("ignore")
 
 def eval_data():
-    x, x_bin, x_gen, x_gen_bin, y, y_gen = generate_new_data(
+    dataset =open_dataset (
         pred_type="ensemble",
         dataset_name='iris',
         try_splits=0,
-        y_index = None,
-        time=300,
-        conf=0.95,
-        n_samples=-1
-    )
+        time=300)
+    x,x_bin,_ = dataset.get_real_samples(y_index=None)
+    dataset.gen_samples(n_samples=-1,conf=0.95)
+    x_gen,x_gen_bin,_ = dataset.get_gen_samples(y_index=None)
     print("CHECKS ON NORMALIZED DATA")
     do_all_sanity_checks(x,x_gen)
     do_all_statistic_tests(x,x_gen)
     print("CHECKS ON BINARY BINNED DATA")
     do_all_sanity_checks(x_bin, x_gen_bin)
     do_all_statistic_tests(x_bin, x_gen_bin)
-    train_on_gen_test_on_real()
-    train_discriminators()
+    train_discriminators(x,x_bin,x_gen,x_gen_bin)
+    x,x_bin,y = dataset.get_real_samples(y_index=-1)
+    x_gen,x_gen_bin,y_gen = dataset.get_gen_samples(y_index=-1)
+    train_on_gen_test_on_real(x,x_bin,y,x_gen,x_gen_bin,y_gen)
 
 
-def train_on_gen_test_on_real():
-    x, x_bin, x_gen, x_gen_bin, y, y_gen = generate_new_data(
-        pred_type="ensemble",
-        dataset_name='iris',
-        try_splits=0,
-        y_index = -1,
-        time=300,
-        conf=0.9,
-        n_samples=-1
-    )
+
+def train_on_gen_test_on_real(x,x_bin,y,x_gen,x_gen_bin,y_gen):
     print("result on real data")
     x_train, x_test, y_train, y_test = split_train_test(x_bin, y, test_size=0.2)
     classify_test_pydl(x_train, x_test, y_train, y_test)
     print("result on gen data")
     classify_test_pydl(x_gen_bin, x_bin, y_gen, y)
 
-def train_discriminators():
-    x, x_bin, x_gen, x_gen_bin, y, y_gen = generate_new_data(
-        pred_type="ensemble",
-        dataset_name='iris',
-        try_splits=0,
-        y_index = None,
-        time=300,
-        conf=0.95,
-        n_samples=-1
-    )
+def train_discriminators(x,x_bin,x_gen,x_gen_bin):
     d = DLDiscriminator(x_bin,x_gen_bin)
     print("check discriminator DL result data")
     d.classify()

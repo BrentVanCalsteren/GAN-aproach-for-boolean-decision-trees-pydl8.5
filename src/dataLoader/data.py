@@ -115,6 +115,7 @@ class Data:
         converted_features = []
         for i,feature in enumerate(features_gen):
             if i in self.discrete_feature_ids:
+                print(f"discritisising gen feature: {i}")
                 uniques = np.unique(features_real[i])
                 conv_feature = []
                 for f in feature:

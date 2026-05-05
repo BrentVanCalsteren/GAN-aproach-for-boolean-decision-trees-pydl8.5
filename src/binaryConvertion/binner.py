@@ -64,7 +64,7 @@ def gen_one_hot_string(array, clusters):
 
 def bin_convertion_2d(array_2d, max_bins=16) -> Tuple[np.ndarray, List,List]:
     """uses bin_convertion function one row at a time for 2d_array"""
-    processed_features = []
+    processed_features = [] #is bin strings
     clusters = []
     feat_bin_len = []
     for feature_row in array_2d:
@@ -72,8 +72,36 @@ def bin_convertion_2d(array_2d, max_bins=16) -> Tuple[np.ndarray, List,List]:
         processed_features.append(onehot_strings)
         feat_bin_len.append(len(onehot_strings[0]))
         clusters.append(cluster)
+    compact_features(processed_features)
     flattend_bin = np.array([flatten_binary_strings(row) for row in np.array(processed_features).T])
     return flattend_bin, feat_bin_len,clusters
+
+def compact_features(features_bin_2D):
+    counts = get_count_difs(features_bin_2D)
+    for i in range(len(counts)):
+        for j in range(len(counts[i])):
+            if i != j:
+                if counts[i][j] < len(features_bin_2D[0])//10:
+                    print(f"possible feat dependence:{i,j}")
+    for i, feature in enumerate(features_bin_2D):
+        if len(feature[0]) == 2:
+            features_bin_2D[i] = [f[0] for f in feature]
+            print(f'compacted feat of len 2: {i}')
+
+
+def get_count_difs(features_bin_2D):
+    np_array = np.array(features_bin_2D)
+    count_matrix = np.zeros(np_array.shape)
+    for i, feat in enumerate(np_array):
+        unique_values, counts = np.unique(feat, return_counts=True)
+        sorted = counts[counts.argsort()]
+        count_matrix[i,0:len(counts)] = sorted
+    count_difs =  {}
+    for i, count in enumerate(count_matrix):
+        count_difs[i] = [np.abs(np.array(count_c-count)).sum() for count_c in count_matrix.copy()]
+    return count_difs
+
+
 
 def flatten_binary_strings(bin_strings):
     combined = ''.join(bin_strings)
