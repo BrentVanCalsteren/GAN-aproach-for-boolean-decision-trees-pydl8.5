@@ -22,7 +22,11 @@ class SingleGaussian1D_distr:
 
     def sample(self, n_samples=1, random_state=None):
         rng = np.random.RandomState(random_state)
-        return self.mean + rng.randn(n_samples) * np.sqrt(self.var)
+        #point = np.array([-1])
+        #while point[point < 0].shape[0] > 0 or point[point > 1].shape[0] > 0:
+
+        point = self.mean + rng.randn(n_samples) * np.sqrt(self.var)
+        return point
 
     def sorted_samples(self, n: int) -> np.ndarray:
         candidates = self.sample(n_samples=n)

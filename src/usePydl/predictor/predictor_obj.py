@@ -59,8 +59,8 @@ class Predictor:
             confidence = self.calc_norm_conf_each_sample(distributions, samples)
             samples_above_thresh.extend(samples[confidence >= conf_thresh])
         arr = np.array(samples_above_thresh)[:n]
-        clipped = np.clip(arr, 0, 1)
-        return clipped
+        #clipped = np.clip(arr, 0, 1)
+        return arr
 
     def get_error_sample(self, distributions, samples):
         error = 1 - self.calc_norm_conf_each_sample(distributions, samples)
