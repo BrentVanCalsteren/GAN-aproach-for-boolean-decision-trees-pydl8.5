@@ -76,15 +76,11 @@ class EnsemblePredictor(Predictor):
 
     def calc_norm_conf_each_sample(self, distributions, samples):
         features = samples.T  # (n_features, n_samples)
-        log_likelihoods = sum(
-            gm.score_feature(features[i])
-            for i, gm in enumerate(distributions)
-        )
-        log_likelihoods_max = sum(
-            float(gm.score_feature(np.array([gm.mean])))
-            for gm in distributions
-        )
-        return np.exp(log_likelihoods - log_likelihoods_max)
+        log_scores = np.zeros(samples.shape[0])
+        for i, gm in enumerate(distributions):
+            log_scores += gm.score_feature(features[i])
+        log_likelihoods_max = np.sum([gm.score_feature(np.array([gm.mean]))for gm in distributions])
+        return np.exp(log_scores - log_likelihoods_max)
 
     # used in default error function
 """

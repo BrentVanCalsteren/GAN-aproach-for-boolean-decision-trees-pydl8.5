@@ -1,10 +1,6 @@
-from typing import Tuple, List, Union
-
-from exceptiongroup import catch
-
+from typing import Tuple, List
 from src.clustering1D.divisive_clustering_1D import DivisiveCluster
 import numpy as np
-import math
 
 def bin_convertion(n_array, max_bins=16) -> Tuple[np.ndarray, List]:
     """will convert a string/number array into a 1-hot string array"""
