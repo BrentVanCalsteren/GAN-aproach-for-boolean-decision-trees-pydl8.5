@@ -1,13 +1,10 @@
 import numpy as np
+from src.samplers.sampler import Sampler
 
-
-class Bernoulli_Distr:
+class Bernoulli_sampler(Sampler):
     prob = None
     log_prob = None
     log_prob_neg = None
-
-    def __init__(self):
-        return
 
     def fit(self, points):
         points = np.asarray(points, dtype=np.float64).ravel()

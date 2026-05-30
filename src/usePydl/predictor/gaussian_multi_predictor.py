@@ -1,5 +1,5 @@
 from typing import List
-from src.usePydl.predictor.predictor_obj import Predictor
+from src.usePydl.predictor.predictor import Predictor
 from src.usePydl.error_fun import predictor_error
 from src.usePydl.leaf import default_leaf_val
 from sklearn.mixture import GaussianMixture
@@ -8,17 +8,17 @@ import numpy as np
 class GaussianMultiPredictor(Predictor):
     #Fit Complexity: O(k·n·d²·EM algorithm used)k=gaus_components,n=number samples,d=num features
     #score complexity: 	O(k·d)
-    def __init__(self,samples, samples_bin, max_depth=3,min_sup=1,time=100):
+    def __init__(self, samples, boolean_splits, max_depth=3, min_sup=1, time=100):
         self.samples = samples
         super().__init__(
-            samples_bin=samples_bin,
+            boolean_splits=boolean_splits,
             error_fun=predictor_error(self, samples),
             leaf_val=default_leaf_val(self,samples),
             max_depth=max_depth,
             min_sup=min_sup,
             time=time
         )
-        self.generate_tree()
+        self.fit()
 
     def get_distr(self, feature_array, n_components=1):
         gm = GaussianMixture(n_components=n_components, covariance_type='full')

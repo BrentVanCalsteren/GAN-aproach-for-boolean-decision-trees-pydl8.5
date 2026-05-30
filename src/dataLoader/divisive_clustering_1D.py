@@ -63,7 +63,6 @@ class DivisiveCluster:
             return
 
         pts = node.points
-        max_gap = -1.0
         new_split_indx = node.split_index.copy()
         split = -1
         max_gap = 0
@@ -100,7 +99,7 @@ class DivisiveCluster:
         )
 
 
-    def get_clusters(self) -> List[List[Any]]:
+    def get_clusters(self) -> List[List[float]]:
         if self._root is None:
             return []
         return get_last_node_clusters(self._root)

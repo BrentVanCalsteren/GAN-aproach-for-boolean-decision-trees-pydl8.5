@@ -1,16 +1,23 @@
+from typing import List
 import numpy as np
+from src.samplers.load_samplers import create_sampler
 #continue errors
 #/////////////////////////////////////
 #default predictor error
-def predictor_error(predictor, samples: np.ndarray):
+def predictor_error(samples: np.ndarray, sample_types: List[str]):
     def error(tids):
         sub_samples = samples[list(tids)]
         n_samples, n_features = sub_samples.shape
         if n_features//2 >= n_samples or n_samples < 2:
             return 10e6
         features = sub_samples.T
-        distrs = predictor.get_distributions(features)
-        return np.sum(predictor.get_error_sample(distrs, sub_samples)) / n_samples
+        total_error = 0.0
+        for i, feat in enumerate(features):
+            sampler = create_sampler(sample_types[i])
+            sampler.fit(feat)
+            feat_error = np.sum(sampler.get_error(feat)) / n_samples
+            total_error += feat_error
+        return  total_error/ n_features
     return error
 
 

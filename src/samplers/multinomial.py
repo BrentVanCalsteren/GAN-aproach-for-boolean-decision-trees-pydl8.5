@@ -1,7 +1,7 @@
 import numpy as np
+from src.samplers.sampler import Sampler
 
-
-class Multinomial_distr:
+class Multinomial_sampler:
     probs = None
     log_probs = None
     n_categories = None

@@ -108,7 +108,7 @@ def inv_kl_divergence(real_samples:np.ndarray, gen_samples:np.ndarray):
     return np.mean(res)
 
 def max_mean_discrepancy(real_samples:np.ndarray, gen_samples:np.ndarray, kernel='rbf'):
-    """MMD using RBF kernel (0 = identical distributions)."""
+    """MMD using RBF kernel (0 = identical samplers)."""
     if kernel == 'rbf':
         gamma = 1.0
         XX = metrics.pairwise.rbf_kernel(real_samples, real_samples, gamma)

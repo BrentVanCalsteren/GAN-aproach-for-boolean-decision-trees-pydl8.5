@@ -1,15 +1,18 @@
 import numpy as np
-
-#default leaf value -> return the distributions
-def default_leaf_val(predictor, samples):
+from src.samplers.load_samplers import create_sampler
+#default leaf value -> return the samplers
+def default_leaf_val(samples, sampler_types):
     def value(tids):
         features = np.array(samples[list(tids)]).T
         print(features.shape)
-        distributions =predictor.get_distributions(features)
+        samplers = []
+        for i, feat in enumerate(features):
+            sampler = create_sampler(sampler_types[i])
+            sampler.fit(feat)
+            samplers.append(sampler)
         return {"count":len(list(tids)),
-                "distr":distributions,
-                "sample_ids": list(tids)
-                }
+                "samplers":samplers,
+                "sample_ids": list(tids)}
     return value
 
 def empty_val():

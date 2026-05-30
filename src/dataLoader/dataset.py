@@ -1,14 +1,14 @@
 import pandas as pd
 from pathlib import Path
 import numpy as np
-from typing import Optional, Union, Tuple
+from typing import Optional
 
 class DatasetLoader:
     """Simplified loader for CSV/data files. Assumes first row is header."""
 
     MISSING_VAL_STRINGS = ['?', 'NA', 'N/A', 'null', 'NULL', 'None', '', ' ']
 
-    def __init__(self, file_path: Union[str, Path]):
+    def __init__(self, file_path):
         self.file_path = Path(file_path)
         self.dataframe: Optional[pd.DataFrame] = None
 
@@ -109,38 +109,3 @@ def load_dataloader_by_name(dataset_name: str, main_dir: str = 'src',
             return loader
 
     raise FileNotFoundError(f"Dataset '{dataset_name}' not found in {base_path}")
-
-
-def standardize_feature(arr):
-    if arr is None:
-        return None
-    np_arr = np.asarray(arr)
-    if np.issubdtype(np_arr.dtype, np.number):
-        print("Already numeric.")
-        return scale_array(np_arr)
-    try:
-        num_arr = np_arr.astype(float)
-        print("Converted numeric strings to float.")
-        return scale_array(num_arr)
-    except (ValueError, TypeError):
-        num_arr = value_to_index_array(np_arr).astype(float)
-        print("Converted chars to index")
-        return scale_array(num_arr)
-
-def value_to_index_array(np_arr):
-    unique_values = np.unique(np_arr)
-    print(f"Unique vals: {unique_values}")
-    value_to_idx = {val: idx for idx, val in enumerate(unique_values)}  # Build mapping
-    return np.array([value_to_idx[val] for val in np_arr])
-
-
-def standardize_2d_features(array):
-    return np.array([standardize_feature(x) for x in array])
-
-def scale_array(num_array):
-    arr = np.asarray(num_array, dtype=float)
-    min_val = arr.min()
-    max_val = arr.max()
-    if max_val-min_val == 0:
-        return np.zeros(len(arr))
-    return np.array((arr - min_val) / (max_val - min_val))

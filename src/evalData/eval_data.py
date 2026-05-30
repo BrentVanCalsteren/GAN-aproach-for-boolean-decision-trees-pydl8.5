@@ -1,6 +1,5 @@
 #train on fake, test on real
 from pydl85 import DL85Classifier
-from src.usePydl.generate_data import open_dataset
 from sklearn.model_selection import train_test_split
 import random
 from sklearn.metrics import accuracy_score, classification_report
@@ -11,6 +10,7 @@ import warnings
 warnings.filterwarnings("ignore")
 
 def eval_data():
+    """
     dataset =open_dataset (
         pred_type="ensemble",
         dataset_name='iris',
@@ -29,7 +29,7 @@ def eval_data():
     x,x_bin,y = dataset.get_real_samples(y_index=-1)
     x_gen,x_gen_bin,y_gen = dataset.get_gen_samples(y_index=-1)
     train_on_gen_test_on_real(x,x_bin,y,x_gen,x_gen_bin,y_gen)
-
+"""
 
 
 def train_on_gen_test_on_real(x,x_bin,y,x_gen,x_gen_bin,y_gen):

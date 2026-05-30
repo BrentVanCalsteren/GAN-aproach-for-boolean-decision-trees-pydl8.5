@@ -1,11 +1,10 @@
+from typing import List
 import numpy as np
-from pyexpat import features
+from src.samplers.sampler import Sampler
 
-
-class Uniform_distr:
-    def __init__(self):
-        self.min = None
-        self.max = None
+class Uniform_sampler:
+    min = None
+    max = None
 
     def fit(self, feat):
         self.min = np.min(feat)
@@ -31,3 +30,12 @@ class Uniform_distr:
     def sorted_samples(self, n: int) -> np.ndarray:
         candidates = self.sample(n_samples=n)
         return candidates[np.argsort(-self.score_feature(candidates))]
+
+    def get_error(self,feature):
+        return 1 - self.score_feature(feature)
+
+
+    def calc_conf_rel_each_sample(self, distributions: List[Uniform_sampler], samples: np.ndarray):
+        features = samples.T
+        scores = np.array([dist.score_feature(features[i]) for i, dist in enumerate(distributions)]).T #shape scores (n_samples,n_features)
+        return np.mean(scores, axis=1)
