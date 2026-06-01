@@ -5,12 +5,13 @@ from src.usePydl.error_fun import predictor_error
 from src.usePydl.leaf import default_leaf_val, get_leaf_vals
 import numpy as np
 
-MIN_NUM_SAMPLES = 40
+MIN_NUM_SAMPLES = 10
 
 class EnsemblePredictor(Predictor):
     def __init__(self,boolean_splits, samples, sampler_types):
         self.child_predictors = {}
         self.samples = samples
+        self.sample_types = sampler_types
         super().__init__(
             boolean_splits=boolean_splits,
             samples=samples,
@@ -28,16 +29,16 @@ class EnsemblePredictor(Predictor):
         samplesIDs_per_leaf = [leaf["value"]["sample_ids"] for leaf in leafs]
         for i, samplesIDs in enumerate(samplesIDs_per_leaf):
             if len(samplesIDs) >= MIN_NUM_SAMPLES and len(samplesIDs) != self.samples.shape[0]:
-                print("Have enough samples to generate extra predictors")
+                print(f"Have enough samples to generate extra predictors, num samples: {len(samplesIDs)}")
                 sub_samples = np.array(self.samples[samplesIDs])
                 sub_samples_bin = np.array(self.samples_bin[samplesIDs])
-                self.child_predictors.update({i:EnsemblePredictor(sub_samples, sub_samples_bin)})
+                self.child_predictors.update({i:EnsemblePredictor(sub_samples_bin, sub_samples, self.sample_types)})
 
 
     def generate_new_data(self, n_new_samples=100, conf_tresh=0.8, mode: str = "keep_counts") -> np.ndarray:
         new_samples = []
         leafs = get_leaf_vals(self.dl_predictor.tree_)
-        distributions_x_leafs = [leaf["value"]["distr"] for leaf in leafs]
+        samplers_x_leafs = [leaf["value"]["samplers"] for leaf in leafs]
         samples_in_leaf = np.array([leaf["value"]["count"] for leaf in leafs])
         total_count = samples_in_leaf.sum()
 
@@ -54,6 +55,6 @@ class EnsemblePredictor(Predictor):
                     n_new_samples=ns[i],
                     conf_tresh=conf_tresh,
                     mode=mode))
-            else: new_samples.extend(self._generate_new_leaf_samples(ns[i], distributions_x_leafs[i], conf_tresh))
+            else: new_samples.extend(self._generate_new_leaf_samples(ns[i], samplers_x_leafs[i], conf_tresh))
 
         return np.array(new_samples)

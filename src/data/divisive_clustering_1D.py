@@ -1,4 +1,4 @@
-from typing import List, Optional, Any, Callable, Union
+from typing import List, Optional, Any, Callable
 
 import numpy as np
 
@@ -6,7 +6,7 @@ import numpy as np
 class Node:
     __slots__ = ('points', 'min_val', 'max_val', 'next_node','split_index', 'depth')
 
-    def __init__(self, points: List[Any], depth: int = 0):
+    def __init__(self, points: np.ndarray, depth: int = 0):
         self.points = sorted(points)  # Keep sorted for consistent splitting
         self.min_val = self.points[0] if self.points else None
         self.max_val = self.points[-1] if self.points else None
@@ -14,7 +14,7 @@ class Node:
         self.split_index = []
         self.depth = depth
 
-    def get_clusters_bonds(self):
+    def get_cluster_intervals(self):
         print('getting clusters')
         clusters = []
         pref_index = 0
@@ -27,18 +27,20 @@ class Node:
         return clusters
 
 
-def get_last_node_clusters(node: Node,depth: int =-1) -> List[List[Any]]:
+def get_last_node_cluster_intervals(node: Node, depth: int =-1) -> List[List[Any]]:
     if node is None:
         return []
     temp = node
     while temp.next_node is not None or depth > 0:
         temp = temp.next_node
         depth -= 1
-    return temp.get_clusters_bonds()
+    return temp.get_cluster_intervals()
 
 
 class DivisiveCluster:
-    def __init__(self,max_depth: Optional[int] = None,min_cluster_size: int = 1,distance_func: Optional[Callable[[Any, Any], float]] = None):
+    #this is written for generating intervals based on the largest gaps in the feature
+    #these intervals can than be used for creating a boolean split that can be used in dl tree
+    def __init__(self,max_depth: Optional[int] = None,min_cluster_size: int = 1,distance_func: Optional[Callable[[float, float], float]] = None):
         self.max_depth = max_depth
         self.min_cluster_size = min_cluster_size
         self.distance_func = distance_func
@@ -46,15 +48,15 @@ class DivisiveCluster:
         self._original_data = None
 
 
-    def fit(self, data) -> None:
-        if data is None or len(data) == 0:
+    def fit(self, points:np.ndarray) -> None:
+        if points is None or points.size == 0:
             self._original_data = []
             self._root = None
             return
 
-        self._original_data = data.copy()
-        sorted_points = sorted(data)
-        self._root = Node(sorted_points, depth=1)
+        self._original_data = points.copy()
+        np.sort(points)
+        self._root = Node(points, depth=1)
         self.split_recursive(self._root)
 
     def split_recursive(self, node: Node) -> None:
@@ -86,25 +88,17 @@ class DivisiveCluster:
         if self.distance_func is not None:
             return self.distance_func(a, b)
 
-        #num gap
         if isinstance(a, (int, float)) and isinstance(b, (int, float)):
             return float(b - a)
 
-        #str gap
-        if isinstance(a, str) and isinstance(b, str):
-            return 1.0 if a != b else 0.0
-
-        raise TypeError(
-            f"Cant calc gap {type(a).__name__} and {type(b).__name__}"
-        )
-
+        raise TypeError(f"Cant calc gap {type(a).__name__} and {type(b).__name__}")
 
     def get_clusters(self) -> List[List[float]]:
         if self._root is None:
             return []
-        return get_last_node_clusters(self._root)
+        return get_last_node_cluster_intervals(self._root)
 
     def get_clusters_at_depth(self, depth: int) -> List[List[Any]]:
         if self._root is None:
             return []
-        return get_last_node_clusters(self._root, depth=depth)
+        return get_last_node_cluster_intervals(self._root, depth=depth)

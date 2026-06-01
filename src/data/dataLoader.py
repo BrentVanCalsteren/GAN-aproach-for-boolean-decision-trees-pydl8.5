@@ -37,10 +37,9 @@ class DatasetLoader:
                 on_bad_lines='skip'
             )
             self.dataframe = df
-
-            data_array = df.to_numpy()#numpy array for missing mask
-            raw_samples = data_array
+            raw_samples = df.to_numpy()
             self.data_samples_X = self._convert_features(raw_samples)
+            #self.data_samples_X = preprocess_mnist_for_trees(self.data_samples_X) #was doing some tests on mnist, but takes very long
 
             missing_mask = self._get_missing_mask(raw_samples)
             self.complete_X = self.data_samples_X[~missing_mask]
@@ -109,3 +108,16 @@ def load_dataloader_by_name(dataset_name: str, main_dir: str = 'src',
             return loader
 
     raise FileNotFoundError(f"Dataset '{dataset_name}' not found in {base_path}")
+
+
+def preprocess_mnist_for_trees(samples: np.ndarray):
+    labels = samples[:, 0]
+    raw_pixels = samples[:, 1:]
+    n_samples = samples.shape[0]
+    images_2d = raw_pixels.reshape(n_samples, 28, 28)
+    images_cropped = images_2d[:, 2:26, 2:26]
+    quantized_images = (images_cropped // 8) #from 256 -> 16 values
+    final_features = quantized_images.reshape(n_samples, -1)
+    final_dataset = np.hstack((final_features, labels[:, np.newaxis]))
+    print('mnist reduced')
+    return final_dataset

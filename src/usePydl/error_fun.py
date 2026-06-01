@@ -21,7 +21,7 @@ def predictor_error(samples: np.ndarray, sample_types: List[str]):
     return error
 
 
-#other errors
+#other errors NOT USED RIGHT NOW
 def mse_error(samples: np.ndarray):
     def error(tids):
         sub_samples = samples[list(tids)]

@@ -2,7 +2,7 @@ from typing import List
 import numpy as np
 from src.samplers.sampler import Sampler
 
-class Uniform_sampler:
+class UniformSampler(Sampler):
     min = None
     max = None
 
@@ -31,11 +31,7 @@ class Uniform_sampler:
         candidates = self.sample(n_samples=n)
         return candidates[np.argsort(-self.score_feature(candidates))]
 
-    def get_error(self,feature):
-        return 1 - self.score_feature(feature)
-
-
-    def calc_conf_rel_each_sample(self, distributions: List[Uniform_sampler], samples: np.ndarray):
+    def calc_conf_rel_each_sample(self, distributions: List[UniformSampler], samples: np.ndarray):
         features = samples.T
         scores = np.array([dist.score_feature(features[i]) for i, dist in enumerate(distributions)]).T #shape scores (n_samples,n_features)
         return np.mean(scores, axis=1)

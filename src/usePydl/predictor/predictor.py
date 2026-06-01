@@ -16,6 +16,7 @@ class Predictor:
         self.fit()
 
     def fit(self):
+        print("fitting_predictor")
         self.dl_predictor.fit(self.samples_bin)
 
     def load_new_data(self,samples_bin):
@@ -45,25 +46,19 @@ class Predictor:
 
     def _generate_new_leaf_samples(self, n, samplers, conf_thresh):
         samples_above_thresh = []
-        while len(samples_above_thresh) < n:
-            gen_feats = []
-            score_matrix = []
-            for sampler in samplers:
-                gen_feat = sampler.sorted_samples(n=100)
-                gen_feats.append(gen_feat)
-                sampler.score_feat(gen_feat)
-                score_matrix.append(sampler.score_feat(gen_feat))
-            samples = np.array(gen_feats).T
-            score_matrix = np.array(score_matrix).T
-            good_scores = np.where(score_matrix >= conf_thresh)
-
-        arr = np.array(samples_above_thresh)[:n]
+        gen_feats = []
+        for sampler in samplers:
+            gen_feat_good = np.array([])
+            while gen_feat_good.size < n:
+                gen_feat = sampler.sorted_samples(n=n) #creates samples sorted on highest score
+                scores = sampler.score_feature(gen_feat)
+                if gen_feat_good.size > 0:
+                    gen_feat_good = np.concatenate((gen_feat_good, gen_feat[scores>=conf_thresh])).flatten()
+                else:
+                    gen_feat_good = gen_feat[scores>=conf_thresh]
+            gen_feats.append(gen_feat_good[:n])
         #clipped = np.clip(arr, 0, 1)
-        return arr
-
-    def get_error_sample(self, distributions, samples):
-        error = 1 - self.calc_norm_conf_each_sample(distributions, samples)
-        return error
+        return np.array(gen_feats).T
 
 
 

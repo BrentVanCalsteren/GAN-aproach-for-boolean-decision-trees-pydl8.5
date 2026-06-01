@@ -26,7 +26,3 @@ def nearest_neighbor_check(real_samples:np.ndarray, gen_samples:np.ndarray):
     estimator = NearestNeighbors(n_neighbors=1).fit(gen_samples)
     dist, _ = estimator.kneighbors(real_samples, return_distance=True)
     return np.mean(dist)
-
-def check_discrete_or_continue_data(real_samples:np.ndarray, gen_samples:np.ndarray):
-    #TODO: still need to make gen samples back discrete when the original vals are discrete
-    pass

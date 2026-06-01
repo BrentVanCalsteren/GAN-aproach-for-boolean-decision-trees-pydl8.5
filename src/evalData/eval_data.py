@@ -1,3 +1,5 @@
+#file is out of date
+
 #train on fake, test on real
 from pydl85 import DL85Classifier
 from sklearn.model_selection import train_test_split
@@ -10,26 +12,8 @@ import warnings
 warnings.filterwarnings("ignore")
 
 def eval_data():
-    """
-    dataset =open_dataset (
-        pred_type="ensemble",
-        dataset_name='iris',
-        try_splits=0,
-        time=300)
-    x,x_bin,_ = dataset.get_real_samples(y_index=None)
-    dataset.gen_samples(n_samples=-1,conf=0.95)
-    x_gen,x_gen_bin,_ = dataset.get_gen_samples(y_index=None)
-    print("CHECKS ON NORMALIZED DATA")
-    do_all_sanity_checks(x,x_gen)
-    do_all_statistic_tests(x,x_gen)
-    print("CHECKS ON BINARY BINNED DATA")
-    do_all_sanity_checks(x_bin, x_gen_bin)
-    do_all_statistic_tests(x_bin, x_gen_bin)
-    train_discriminators(x,x_bin,x_gen,x_gen_bin)
-    x,x_bin,y = dataset.get_real_samples(y_index=-1)
-    x_gen,x_gen_bin,y_gen = dataset.get_gen_samples(y_index=-1)
-    train_on_gen_test_on_real(x,x_bin,y,x_gen,x_gen_bin,y_gen)
-"""
+    #have to rewrite this since the way i load and store data has been changed
+    pass
 
 
 def train_on_gen_test_on_real(x,x_bin,y,x_gen,x_gen_bin,y_gen):
@@ -59,8 +43,14 @@ def split_train_test(x, y, test_size=0.2):
     return x_train, x_test, y_train, y_test
 
 def classify_test_pydl(x_train, x_test, y_train, y_test):
+
+    depth = 1
+    uniques = np.unique(y_train)
+    while 2**(depth) < x_train.shape[0]:
+        depth += 1
+    print("Running pydl classifier")
     clasfi = create_classifier_default(
-        x_bin=x_train, y=y_train, max_depth=4, min_sup=1, time=300)
+        x_bin=x_train, y=y_train, max_depth=depth, min_sup=1, time=300)
     y_pred_test = clasfi.predict(x_test)
     accuracy = accuracy_score(y_test, y_pred_test)
     print(f"Accuracy: {accuracy:.4f}")

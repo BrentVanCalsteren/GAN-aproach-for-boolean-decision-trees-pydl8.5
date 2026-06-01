@@ -1,7 +1,7 @@
 import numpy as np
 from src.usePydl.predictor import default_predictor,gaussian_1D_predictor,uniform_predictor
 from src.usePydl.predictor.predictor import Predictor
-from src.dataLoader.Dataset import *
+from src.data.Dataset import *
 
 import time
 import matplotlib.pyplot as plt

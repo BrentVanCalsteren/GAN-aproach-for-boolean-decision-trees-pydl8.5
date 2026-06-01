@@ -4,7 +4,6 @@ from src.samplers.load_samplers import create_sampler
 def default_leaf_val(samples, sampler_types):
     def value(tids):
         features = np.array(samples[list(tids)]).T
-        print(features.shape)
         samplers = []
         for i, feat in enumerate(features):
             sampler = create_sampler(sampler_types[i])
@@ -15,12 +14,15 @@ def default_leaf_val(samples, sampler_types):
                 "sample_ids": list(tids)}
     return value
 
+
+#other leaf val functions: NOT USED RIGHT NOW
 def empty_val():
     def value(_):
         return 1
     return value
+#-------------------------------------------------
 
-#helper
+#helpers for looking at leaf data
 def get_leaf_vals(tree):
     leaves = []
     def recurse(node):
