@@ -44,7 +44,7 @@ def test_data_generation():
     sample_obj = Samples('iris')
     #==========================
     #first simple test thats dataset load and generating splits work correctly
-    sample_obj.creat_splits(total_split_num=30)
+    sample_obj.creat_splits(total_split_num=90)
     splits = sample_obj.get_splits()
     samples = sample_obj.get_samples()
     same_splits = sample_obj.map_other_samples_to_same_splits(samples) #this is to check if the function works for mapping other samples features to the same boolean splits.
@@ -109,7 +109,9 @@ if __name__ == "__main__":
     test_data_generation()
 
 """
-last outputs of classifier: (always tested on iris dataset)
+OUTPUT EXEMPLE WITH DEFAULT ERROR (sampler method
+=========================================
+last outputs of classifier: (tested on iris dataset) (runtime around 10 minutes)
 on data alone:
 Accuracy: 0.8000
 
@@ -151,4 +153,53 @@ Classification Report:
     accuracy                           0.97        30
    macro avg       0.97      0.97      0.97        30
 weighted avg       0.97      0.97      0.97        30
+
+#OUTPUT WITH MIN_INTERVAL ERROR (same settings except error fun)
+========================================
+last outputs of classifier: (tested on iris dataset) (runtime like 10 seconds = 60 times faster)
+on data alone:
+
+Accuracy: 0.9333
+
+Classification Report:
+              precision    recall  f1-score   support
+
+         0.0       1.00      1.00      1.00         7
+         1.0       0.88      1.00      0.93        14
+         2.0       1.00      0.78      0.88         9
+
+    accuracy                           0.93        30
+   macro avg       0.96      0.93      0.94        30
+weighted avg       0.94      0.93      0.93        30
+
+-------------------------------------------------------
+on gen data alone:
+Accuracy: 0.9000
+
+Classification Report:
+              precision    recall  f1-score   support
+
+         0.0       1.00      0.86      0.92         7
+         1.0       0.87      0.93      0.90        14
+         2.0       0.89      0.89      0.89         9
+
+    accuracy                           0.90        30
+   macro avg       0.92      0.89      0.90        30
+weighted avg       0.90      0.90      0.90        30
+
+-------------------------------------------------------
+combined:
+Accuracy: 0.9667
+
+Classification Report:
+              precision    recall  f1-score   support
+
+         0.0       1.00      1.00      1.00         7
+         1.0       0.93      1.00      0.97        14
+         2.0       1.00      0.89      0.94         9
+
+    accuracy                           0.97        30
+   macro avg       0.98      0.96      0.97        30
+weighted avg       0.97      0.97      0.97        30
+
 """
