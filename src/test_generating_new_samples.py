@@ -1,10 +1,11 @@
-from sympy.codegen.ast import none
+from pandas.core import sample
 
 from src.usePydl.predictor.ensemble_predictors import EnsemblePredictor
 from src.data.sampels import Samples
 import numpy as np
 from pydl85 import DL85Classifier
 from sklearn.model_selection import train_test_split
+from src.usePydl.classifier.ensemble_classifier import EnsembleClassifier
 import random
 from sklearn.metrics import accuracy_score, classification_report
 
@@ -41,12 +42,14 @@ from sklearn.metrics import accuracy_score, classification_report
 # (different depths will generate different clusters and does result into different errors)
 
 def test_data_generation():
-    sample_obj = Samples('iris')
+    sample_obj = Samples(dataset='MNIST_jpeg',data_type='image')
     #==========================
     #first simple test thats dataset load and generating splits work correctly
-    sample_obj.creat_splits(total_split_num=90)
+    sample_obj.creat_splits(splits_each_feature=10)
     splits = sample_obj.get_splits()
     samples = sample_obj.get_samples()
+    # test image convertion
+    sample_obj.convert_to_image(samples=samples,name='original')
     same_splits = sample_obj.map_other_samples_to_same_splits(samples) #this is to check if the function works for mapping other samples features to the same boolean splits.
     print(f'bool convertion works correctly: {np.equal(splits, same_splits).all()}')
     #=========================================
@@ -54,21 +57,24 @@ def test_data_generation():
     splits_x = sample_obj.get_splits(slices=slice(0,-1))
     samples_y = sample_obj.get_samples(slices=slice(-1,None,None),convert_to_int=True) #convert back to int, dl classifier needs int labels
     train_x,test_x,train_y,test_y = train_test(splits=splits_x, samples=samples_y,test_size=0.2)
-    classify_test_pydl(train_x,test_x,train_y,test_y)
+    #classify_ensemble(train_x,test_x,train_y,test_y)
     #=================================================
     #now let's generate new data
     ensemble_pred = EnsemblePredictor(splits, samples,sample_obj.get_feature_types())
-    samples_gen = ensemble_pred.generate_new_data(n_new_samples=200, conf_tresh=0.8) #conf_tresh is how high the features for each sample need to score
+    samples_gen = ensemble_pred.generate_new_data(n_new_samples=1000, conf_tresh=0.8) #conf_tresh is how high the features for each sample need to score
     #=================================================
     #now let's see if classification is better with extra generated data
     splits_gen = sample_obj.map_other_samples_to_same_splits(samples_gen,slices=slice(0,-1))
     y_gen = value_to_index(samples_gen[:, -1])
     #test on generated data alone
-    classify_test_pydl(splits_gen, test_x, y_gen, test_y)
+    #classify_ensemble(splits_gen, test_x, y_gen, test_y)
     splits_combined = np.vstack((train_x, splits_gen))
     y_combined = np.hstack((train_y, y_gen))
     # test on combined data
-    classify_test_pydl(splits_combined, test_x, y_combined, test_y)
+    #classify_ensemble(splits_combined, test_x, y_combined, test_y)
+    sample_obj.convert_to_image(samples=samples_gen[:-1,:], name='generated')
+
+
 
 
 def train_test(splits, samples, test_size=0.2):
@@ -76,11 +82,20 @@ def train_test(splits, samples, test_size=0.2):
                                                         random_state=random.randint(1, 100))
     return splits_train, splits_test, samples_train, samples_test
 
-def classify_test_pydl(x_train, x_test, y_train, y_test):
+def classify_ensemble(x_train, x_test, y_train, y_test):
+    print("Running pydl classifier")
+    clasfi = EnsembleClassifier(max_depth=3, min_sup=1, time_limit=100)
+    clasfi.fit(x_train,y_train)
+    y_pred_test = clasfi.predict(x_test)
+    accuracy = accuracy_score(y_test, y_pred_test)
+    print(f"Accuracy: {accuracy:.4f}")
+    print("\nClassification Report:")
+    print(classification_report(y_test, y_pred_test))
 
+def classify_test_pydl(x_train, x_test, y_train, y_test):
     depth = 1
     uniques = np.unique(y_train)
-    while 2**(depth) < x_train.shape[0]:
+    while 2**depth < len(uniques):
         depth += 1
     print("Running pydl classifier")
     clasfi = create_classifier_default(

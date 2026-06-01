@@ -35,7 +35,7 @@ class EnsemblePredictor(Predictor):
     def generate_new_data(self, n_new_samples=100, conf_tresh=0.8, mode: str = "keep_counts") -> np.ndarray:
         new_samples = []
         leafs = get_leaf_vals(self.dl_predictor.tree_)
-        samplers_x_leafs = [leaf["value"]["samplers"] for leaf in leafs]
+        samplers_x_leafs = [leaf["value"]["samplers_dict"] for leaf in leafs]
         samples_in_leaf = np.array([leaf["value"]["count"] for leaf in leafs])
         total_count = samples_in_leaf.sum()
 

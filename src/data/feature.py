@@ -6,18 +6,35 @@ from usePydl.predictor.predictor import Predictor
 from data.divisive_clustering_1D import DivisiveCluster
 
 DESCRETE_PERCENTILE = 5
-DIFFERENT_CLUSTERS_TO_CREATE = 20
-DIFFERENT_PERCETILE_BINS_TO_CREATE = 20
+DIFFERENT_CLUSTERS_TO_CREATE = 10
+DIFFERENT_PERCETILE_BINS_TO_CREATE = 10
 
 class Feature: #is a d array of datapoints
     def __init__(self, raw_feature_data:np.ndarray):
+        self.min_val = 0
+        self.max_val = 0
         self.active_splits = {}
         self.errors = []
         self.isDiscrete = False
         self.feature_type = None #tells predictor which sampler to use
-        self.feature_array = standardize_feature(raw_feature_data)
+        feature_array = standardize_feature(raw_feature_data)
+        self.feature_array = self.scale(feature_array)
         self.check_descrete()
         self.dependent_feat = []
+
+    def scale(self, arr: np.ndarray):
+        self.min_val = arr.min()
+        self.max_val = arr.max()
+
+        if self.max_val - self.min_val == 0:
+            return np.zeros(len(arr))
+        return np.array((arr - self.min_val) / (self.max_val - self.min_val))
+
+    def reverse_scale(self, scaled_arr: np.ndarray):
+        if self.max_val - self.min_val == 0:
+            return np.full_like(scaled_arr, self.min_val)
+        return scaled_arr * (self.max_val - self.min_val) + self.min_val
+
 
     def check_descrete(self):
         unique_vals = np.unique(self.feature_array)
@@ -25,7 +42,7 @@ class Feature: #is a d array of datapoints
             self.isDiscrete = True
             self.feature_type = 'multinomial'
             return
-        self.feature_type = 'single_gaussian'
+        self.feature_type = 'multi_gaussian'
 
     def feature_to_samples(self):
         return self.feature_array.reshape(-1, 1)
@@ -198,18 +215,11 @@ def standardize_feature(raw_feature_data):
     try:
         num_arr = np.asarray(raw_feature_data, dtype=float)
         print("Converted numeric strings to float.")
-        return scale(num_arr)
+        return num_arr
     except (ValueError, TypeError):
         num_arr = value_to_index(raw_feature_data)
         print("Converted chars to index")
-        return scale(num_arr)
-
-def scale(arr:np.ndarray):
-    min_val = arr.min()
-    max_val = arr.max()
-    if max_val - min_val == 0:
-        return np.zeros(len(arr))
-    return np.array((arr - min_val) / (max_val - min_val))
+        return num_arr
 
 def value_to_index(np_arr):
     unique_values = np.unique(np_arr)

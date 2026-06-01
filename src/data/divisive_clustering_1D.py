@@ -18,7 +18,7 @@ class Node:
         print('getting clusters')
         clusters = []
         pref_index = 0
-        print(f'split index: {self.split_index}')
+        #print(f'split index: {self.split_index}')
         for index in self.split_index:
             cluster = [self.points[pref_index], self.points[index-1]]
             clusters.append(cluster)

@@ -1,17 +1,31 @@
 import numpy as np
-from src.samplers.load_samplers import create_sampler
+from src.samplers.load_samplers import get_sampler_class
+
 #default leaf value -> return the samplers
 def default_leaf_val(samples, sampler_types):
     def value(tids):
         features = np.array(samples[list(tids)]).T
-        samplers = []
-        for i, feat in enumerate(features):
-            sampler = create_sampler(sampler_types[i])
-            sampler.fit(feat)
-            samplers.append(sampler)
-        return {"count":len(list(tids)),
-                "samplers":samplers,
+        type_to_feature_indices = {}
+        for i, stype in enumerate(sampler_types):
+            if stype not in type_to_feature_indices:
+                type_to_feature_indices[stype] = []
+            type_to_feature_indices[stype].append(i)
+
+        samplers_dict = {}
+        for stype, indices in type_to_feature_indices.items():
+            cls = get_sampler_class(stype)
+            if cls:
+                grouped_features = features[indices]
+                fitted_samplers = cls.fit_all_features_of_this_type(grouped_features)
+                samplers_dict[stype] = {
+                    "indices": indices,
+                    "samplers": fitted_samplers
+                }
+
+        return {"count": len(list(tids)),
+                "samplers_dict": samplers_dict,
                 "sample_ids": list(tids)}
+
     return value
 
 

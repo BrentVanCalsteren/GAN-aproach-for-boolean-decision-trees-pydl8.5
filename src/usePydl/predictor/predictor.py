@@ -2,6 +2,7 @@ import numpy as np
 from pydl85 import DL85Predictor
 from src.usePydl.leaf import get_leaf_vals
 from src.usePydl.error_fun import predictor_error, reduce_interval_sizes
+from src.samplers.load_samplers import get_sampler_class
 from src.usePydl.leaf import default_leaf_val
 
 class Predictor:
@@ -31,7 +32,7 @@ class Predictor:
         #maybe simplify this by using the feature.active_splits dicts and jsut the dl_tree structure itself (since it tells us on which feature is split on)
         #build the intervals, create a sampler with it and sample
         leafs = get_leaf_vals(self.dl_predictor.tree_)
-        samplers_x_leafs = [leaf["value"]["samplers"] for leaf in leafs]
+        samplers_x_leafs = [leaf["value"]["samplers_dict"] for leaf in leafs]
         samples_in_leaf = np.array([leaf["value"]["count"] for leaf in leafs])
         total_count = samples_in_leaf.sum()
         new_samples = []
@@ -47,21 +48,25 @@ class Predictor:
                  new_samples.extend(self._generate_new_leaf_samples(ns[i],samplers_x_leafs[i],conf_tresh))
         return np.array(new_samples)
 
-    def _generate_new_leaf_samples(self, n, samplers, conf_thresh):
-        samples_above_thresh = []
-        gen_feats = []
-        for sampler in samplers:
-            gen_feat_good = np.array([])
-            while gen_feat_good.size < n:
-                gen_feat = sampler.sorted_samples(n=n) #creates samples sorted on highest score
-                scores = sampler.score_feature(gen_feat)
-                if gen_feat_good.size > 0:
-                    gen_feat_good = np.concatenate((gen_feat_good, gen_feat[scores>=conf_thresh])).flatten()
-                else:
-                    gen_feat_good = gen_feat[scores>=conf_thresh]
-            gen_feats.append(gen_feat_good[:n])
-        #clipped = np.clip(arr, 0, 1)
-        return np.array(gen_feats).T
+    def _generate_new_leaf_samples(self, n, samplers_dict, conf_thresh):
+        from src.samplers.load_samplers import get_sampler_class
+
+        if not samplers_dict or n <= 0:
+            return []
+
+        total_features = sum(len(group["indices"]) for group in samplers_dict.values())
+        combined_features = np.zeros((n, total_features))
+
+        for stype, group in samplers_dict.items():
+            cls = get_sampler_class(stype)
+            indices = group["indices"]
+            samplers = group["samplers"]
+            gen_feats = cls.generate_new_samples_for_all_features_of_this_type(n, conf_thresh, samplers)
+
+            for i, idx in enumerate(indices):
+                combined_features[:, idx] = gen_feats[:, i]
+
+        return combined_features
 
 
 

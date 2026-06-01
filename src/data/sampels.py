@@ -1,22 +1,26 @@
 from typing import List, Optional
 
 import numpy as np
-from data.dataLoader import load_dataloader_by_name as loader
+from PIL import features
+
+from data.dataLoader import load_dataloader_by_name as loader, array_to_image, save_image_to_folder
 from data.feature import Feature
 import data.feature as f
 
 class Samples:
-    def __init__(self,dataset : Optional[str]='iris',set_all_discrete=False):
+    def __init__(self,dataset : Optional[str]='iris',data_type='tabular',set_all_discrete=False):
         if set_all_discrete:
             f.DESCRETE_PERCENTILE = 100
         self.feature_list : List[Feature] = []
         self.samples = np.array([])
+        self.encoder = None
         if dataset:
-            self.load_new_dataset(dataset)
+            self.load_new_dataset(dataset,data_type)
 
-    def load_new_dataset(self,dataset='iris'):
-        loaded_data = loader(dataset)
+    def load_new_dataset(self,dataset='iris',data_type='tabular'):
+        loaded_data = loader(dataset_name=dataset, data_type=data_type)
         samples = loaded_data.get_x_complete()
+        self.encoder = loaded_data.encoder
         self.load_samples(samples)
 
 
@@ -37,10 +41,9 @@ class Samples:
                 return np.array([feat.feature_array for feat in sliced]).flatten()
         return np.array([feat.feature_array for feat in sliced]).T
 
-    def creat_splits(self, total_split_num=None):
-        if total_split_num is None:
-            total_split_num = len(self.feature_list)*5
-        splits_each_feature = total_split_num//len(self.feature_list)
+    def creat_splits(self, splits_each_feature=None):
+        if splits_each_feature is None:
+            splits_each_feature = 5
         for feat in self.feature_list:
             feat.create_all_independent_splits(splits_each_feature)
 
@@ -77,6 +80,28 @@ class Samples:
 
     def get_feature_types(self):
         return [feat.feature_type for feat in self.feature_list]
+
+    def reverse_scale(self, s):
+        fifa = s.T
+        reverse = []
+        for i, feat in enumerate(self.feature_list):
+            reverse.append(feat.reverse_scale(fifa[i]))
+        return np.array(reverse).T
+
+    def decode_samples(self, samples_to_decode):
+        if self.encoder:
+            decoded = self.encoder.inverse_transform(samples_to_decode)
+            return decoded
+        print("can't decode, no encoder")
+        return samples_to_decode
+
+    def convert_to_image(self,samples, name='default.png'):
+        reverse_scaled = self.reverse_scale(samples)
+        decoded_samples = self.decode_samples(reverse_scaled[:10, :-1])
+        image = array_to_image(decoded_samples[0])
+        if not '.' in name:
+            name = name + '.png'
+        save_image_to_folder(image, "output", name)
 
 #helpers
 def value_to_index(array):

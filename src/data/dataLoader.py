@@ -1,51 +1,49 @@
+import math
+import os
+
+import PIL
 import pandas as pd
 from pathlib import Path
 import numpy as np
 from typing import Optional
+from PIL import Image
+
+from data.encoders.encoder_PCA import PCAEncoder
 
 class DatasetLoader:
     """Simplified loader for CSV/data files. Assumes first row is header."""
 
     MISSING_VAL_STRINGS = ['?', 'NA', 'N/A', 'null', 'NULL', 'None', '', ' ']
+    RESOLUTION = (24, 24)
+    LABEL_INDEX = -1
+    MAX_IM_EACH_CLASS = 50
+    MAX_NUM_FEATS = 50
 
     def __init__(self, file_path):
         self.file_path = Path(file_path)
-        self.dataframe: Optional[pd.DataFrame] = None
-
-        # All samples
-        self.data_samples_X: Optional[np.ndarray] = None
-        self.data_samples_Y: Optional[np.ndarray] = None
-
-        # Complete vs. missing subsets
+        self.encoder = None
+        #split samples
         self.complete_X: Optional[np.ndarray] = None
         self.complete_Y: Optional[np.ndarray] = None
         self.missing_X: Optional[np.ndarray] = None
         self.missing_Y: Optional[np.ndarray] = None
 
-    def load(self, encoding: str = 'utf-8') -> None:
-        """
-        Load the CSV file with pandas, split samples into complete/missing
-        """
+    def load_tabular_data(self):
         try:
-            # Let pandas detect delimiter automatically
             df = pd.read_csv(
                 self.file_path,
                 sep=None,
                 header=0,
-                encoding=encoding,
+                encoding='utf-8',
                 engine='python',
                 on_bad_lines='skip'
             )
-            self.dataframe = df
             raw_samples = df.to_numpy()
-            self.data_samples_X = self._convert_features(raw_samples)
-            #self.data_samples_X = preprocess_mnist_for_trees(self.data_samples_X) #was doing some tests on mnist, but takes very long
-
             missing_mask = self._get_missing_mask(raw_samples)
-            self.complete_X = self.data_samples_X[~missing_mask]
-            self.missing_X = self.data_samples_X[missing_mask]
+            self.complete_X = raw_samples[~missing_mask]
+            self.missing_X = raw_samples[missing_mask]
 
-            print(f"Loaded {self.data_samples_X.shape[0]} "
+            print(f"Loaded {raw_samples.shape[0]} "
                   f"samples: complete {self.complete_X.shape[0]},missing {self.missing_X.shape[0]}")
         except Exception as e:
             raise RuntimeError(f"Error loading dataset: {e}")
@@ -58,10 +56,65 @@ class DatasetLoader:
             mask |= np.isin(col_data, self.MISSING_VAL_STRINGS)
         return mask
 
+    def load_image_data(self):
+        if not self.file_path.exists():
+            raise FileNotFoundError(f"Directory {self.file_path} does not exist.")
+        features = []
+        labels = []
+        class_folders = [f for f in self.file_path.iterdir() if f.is_dir()]
+        class_folders.sort()
+
+        class_to_idx = {folder.name: idx for idx, folder in enumerate(class_folders)}
+        print(f"Found classes: {class_to_idx}")
+
+        def check_greyscale(img: PIL.Image.Image):
+            if img.mode in ('L', '1'):
+                return True
+
+        greyscale = False
+        for folder in class_folders:
+            label_idx = class_to_idx[folder.name]
+            for i, img_file in enumerate(folder.iterdir()):
+                if i > self.MAX_IM_EACH_CLASS:
+                    break
+                if img_file.suffix.lower() in ['.png', '.jpg', '.jpeg', '.bmp']:
+                    try:
+                        img = Image.open(img_file)
+                        if greyscale or check_greyscale(img):
+                            greyscale = True
+                            img = img.convert('L')
+                        else:
+                            img = img.convert('RGB')
+
+                        if self.RESOLUTION:
+                            img = img.resize(self.RESOLUTION)
+
+                        img_array = np.asarray(img, dtype=np.float32)
+                        features.append(img_array.flatten())
+                        labels.append(label_idx)
+                    except Exception as e:
+                        print(f"Failed to load image {img_file}: {e}")
+
+        if not features:
+            raise ValueError(f"No valid images found in {self.file_path}")
+
+        features = np.array(features)
+        labels = np.array(labels).reshape(-1, 1)
+
+        if features.shape[1] > self.MAX_NUM_FEATS:
+            reduced_features = self.reduce_features(features, greyscale)
+            self.complete_X = np.hstack((reduced_features, labels))
+        else:
+            self.complete_X = np.hstack((features, labels))
+
+    def reduce_features(self, features, greyscale):
+        print("Reducing features...")
+        self.encoder = PCAEncoder(self.MAX_NUM_FEATS)
+        reduced_features = self.encoder.fit_transform(features)
+        self.encoder.original_shape = (-1, self.RESOLUTION[0], self.RESOLUTION[1], 1 if greyscale else 3)
+        return reduced_features
+
     def _convert_features(self, samples: np.ndarray) -> np.ndarray:
-        """
-        try converting everything to a float
-        """
         converted = samples.copy().astype(object)
         for i in range(samples.shape[1]):
             col = samples[:, i]
@@ -87,10 +140,9 @@ class DatasetLoader:
 
 
 def load_dataloader_by_name(dataset_name: str, main_dir: str = 'src',
-                            data_subdir: str = 'datasets', **kwargs) -> DatasetLoader:
-    """
-    Find and load a dataset by name from main_dir/data_subdir/dataset_name/dataset_name.csv/.data
-    """
+                            data_subdir: str = 'datasets', data_type='tabular') -> DatasetLoader:
+
+    #Find and load a dataset by name from main_dir/data_subdir/dataset_name/dataset_name.csv/.data
     file_path = Path().resolve()
     str_path = str(file_path)
     index = str_path.find(main_dir)
@@ -98,26 +150,37 @@ def load_dataloader_by_name(dataset_name: str, main_dir: str = 'src',
         raise ValueError(f"Main directory '{main_dir}' not found in path: {str_path}")
     main_path = Path(str_path[:index + len(main_dir)])
     base_path = main_path / data_subdir
-
-    for ext in ['.csv', '.data']:
-        candidate = base_path / dataset_name / f"{dataset_name}{ext}"
-        if candidate.exists():
-            print(f"Loading dataset from: {candidate}")
-            loader = DatasetLoader(candidate)
-            loader.load(**kwargs)
+    if data_type == 'tabular':
+        for ext in ['.csv', '.data']:
+            candidate = base_path / dataset_name / f"{dataset_name}{ext}"
+            if candidate.exists():
+                print(f"Loading dataset from: {candidate}")
+                loader = DatasetLoader(candidate)
+                loader.load_tabular_data()
+                return loader
+    elif data_type == 'image':
+            folder = base_path / dataset_name
+            loader = DatasetLoader(folder)
+            loader.load_image_data()
             return loader
-
     raise FileNotFoundError(f"Dataset '{dataset_name}' not found in {base_path}")
 
+def array_to_image(arr: np.ndarray):
+    if arr.ndim == 1:
+        total_elements = arr.shape[0]
+        side_length = math.ceil(math.sqrt(total_elements))
+        target_size = side_length * side_length
+        padding_needed = target_size - total_elements
 
-def preprocess_mnist_for_trees(samples: np.ndarray):
-    labels = samples[:, 0]
-    raw_pixels = samples[:, 1:]
-    n_samples = samples.shape[0]
-    images_2d = raw_pixels.reshape(n_samples, 28, 28)
-    images_cropped = images_2d[:, 2:26, 2:26]
-    quantized_images = (images_cropped // 8) #from 256 -> 16 values
-    final_features = quantized_images.reshape(n_samples, -1)
-    final_dataset = np.hstack((final_features, labels[:, np.newaxis]))
-    print('mnist reduced')
-    return final_dataset
+        if padding_needed > 0:
+            arr = np.pad(arr, (0, padding_needed), mode='constant', constant_values=0)
+        arr = arr.reshape((side_length, side_length))
+    arr = np.clip(arr, 0, 255).astype(np.uint8)
+    return Image.fromarray(arr)
+
+
+def save_image_to_folder(img, folder_name="output", filename="generated_image.png"):
+    os.makedirs(folder_name, exist_ok=True)
+    file_path = os.path.join(folder_name, filename)
+    img.save(file_path)
+    print(f"Success! Image saved to: {file_path}")
