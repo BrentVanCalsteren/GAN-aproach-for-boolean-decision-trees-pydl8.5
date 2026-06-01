@@ -30,9 +30,12 @@ from sklearn.metrics import accuracy_score, classification_report
 # tree (predictor.py) uses default error function (in eror_fun.py) for picking good splits and
 # leaf vals will return default leaf val in leaf.py
 #==============================================================================
-# right now samplers will be created in error function based on the numeric values of samples (each sampler is based on a different distribution (all work on a single feat))
-# these samplers will be used to score the possible cluster. (best split will be a split that result into 2 clusters with the lowest error)
-# now i have implemented a ensemble tree approach the problem with this is that it can not gerantee that the splits are the best.
+# right now if have to sample functions i use: 1) one that just tries to make each feature interval as small as possible
+# 2) one that tries to calc an error by creating a sampler object every time -> is way slower and the results are identical / worse
+# (perhaps mulit-feature samplers are better at this, but it would still make it extreemly slow, while in theory it give the same result:
+# reducing the intervals)
+# error vals are used to score the possible cluster. (best split will be a split that result into 2 clusters with the lowest error)
+# now i have also implemented a ensemble tree approach the problem with this is that it can not gerantee that the splits are the best.
 # it can be that the split is the best for depth 2 but for depth 4 not. Since the error from split depth 2
 # will be calculated based on the erros from splits at depth 3 under him ect.
 # (different depths will generate different clusters and does result into different errors)
@@ -41,7 +44,7 @@ def test_data_generation():
     sample_obj = Samples('iris')
     #==========================
     #first simple test thats dataset load and generating splits work correctly
-    sample_obj.creat_splits(total_split_num=90)
+    sample_obj.creat_splits(total_split_num=30)
     splits = sample_obj.get_splits()
     samples = sample_obj.get_samples()
     same_splits = sample_obj.map_other_samples_to_same_splits(samples) #this is to check if the function works for mapping other samples features to the same boolean splits.

@@ -19,6 +19,7 @@ class SingleGaussian1DSampler(Sampler):
         std = np.sqrt(self.var)
         if std < 1e-10:
             std = 1e-10
+        #this is an aproximation for calculating it faster
         z_score = (feature - self.mean) / std
         score = np.exp(-0.5 * (z_score ** 2))
         return score

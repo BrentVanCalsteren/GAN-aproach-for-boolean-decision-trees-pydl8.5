@@ -1,13 +1,13 @@
 import numpy as np
 from pydl85 import DL85Predictor
 from src.usePydl.leaf import get_leaf_vals
-from src.usePydl.error_fun import predictor_error
+from src.usePydl.error_fun import predictor_error, reduce_interval_sizes
 from src.usePydl.leaf import default_leaf_val
 
 class Predictor:
     def __init__(self, boolean_splits,samples,sampler_types, max_depth, min_sup, time):
         self.samples_bin = boolean_splits
-        self.dl_predictor = DL85Predictor(error_function=predictor_error(samples,sampler_types),
+        self.dl_predictor = DL85Predictor(error_function=reduce_interval_sizes(samples),
                                           leaf_value_function=default_leaf_val(samples,sampler_types),
                                           max_depth=max_depth,
                                           min_sup=min_sup,
@@ -27,6 +27,9 @@ class Predictor:
         return self.dl_predictor.predict(samples_bin)
 
     def generate_new_data(self, n_new_samples: int = 100, conf_tresh: float = 0.8,mode: str = "keep_counts") -> np.ndarray:
+        #the leafs at the moment store a lot of information which is all used here.
+        #maybe simplify this by using the feature.active_splits dicts and jsut the dl_tree structure itself (since it tells us on which feature is split on)
+        #build the intervals, create a sampler with it and sample
         leafs = get_leaf_vals(self.dl_predictor.tree_)
         samplers_x_leafs = [leaf["value"]["samplers"] for leaf in leafs]
         samples_in_leaf = np.array([leaf["value"]["count"] for leaf in leafs])

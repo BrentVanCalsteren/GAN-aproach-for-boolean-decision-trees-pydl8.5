@@ -20,6 +20,19 @@ def predictor_error(samples: np.ndarray, sample_types: List[str]):
         return  total_error/ n_features
     return error
 
+def reduce_interval_sizes(samples: np.ndarray):
+    def error(tids):
+        sub_samples = samples[list(tids)]
+        n_samples, n_features = sub_samples.shape
+        features = sub_samples.T
+        if n_features//2 >= n_samples or n_samples < 2:
+            return 10e6
+        max_per_row = features.max(axis=1)
+        min_per_row = features.min(axis=1)
+        diff = max_per_row - min_per_row
+        return np.sum(diff)/diff.shape[0]
+    return error
+
 
 #other errors NOT USED RIGHT NOW
 def mse_error(samples: np.ndarray):

@@ -1,5 +1,5 @@
 #################################################
-###############OLD FILE NOT USED AT THE MOMENT
+###############OLD FILE NOT USED AT ALL -> can be discarded when gaussianmixture sampler is written
 ############################################"
 
 
@@ -29,7 +29,6 @@ class GaussianMultiPredictor(Predictor):
         gm = GaussianMixture(n_components=n_components, covariance_type='full')
         gm.fit(feature_array.reshape(-1, 1))
         return gm
-#TODO update
 
     def calc_norm_conf_each_sample(self, distributions: List[GaussianMixture], samples: np.ndarray) -> np.ndarray:
         features = samples.T  # (n_features, n_samples)

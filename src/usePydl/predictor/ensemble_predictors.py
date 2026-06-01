@@ -1,8 +1,5 @@
-import math
-from typing import List
 from src.usePydl.predictor.predictor import Predictor
-from src.usePydl.error_fun import predictor_error
-from src.usePydl.leaf import default_leaf_val, get_leaf_vals
+from src.usePydl.leaf import get_leaf_vals
 import numpy as np
 
 MIN_NUM_SAMPLES = 10

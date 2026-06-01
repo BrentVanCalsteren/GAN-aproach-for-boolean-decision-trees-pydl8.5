@@ -15,7 +15,8 @@ class UniformSampler(Sampler):
         inside = ((feat_array >= self.min) & (feat_array <= self.max)).astype(float)
         width = self.max - self.min
         if width == 1: width = 1  - 1e-10
-        return inside * ((1 - width)/10+0.9) #for generation else i never get confidence above 0.9 TODO maybe fix it correctly
+        #the confidence should be higher when the interval is smaller
+        return inside * ((1 - width)/10+0.9) #TODO  fix it correctly
 
     def sample(self, n_samples=1):
         if self.min is None:
