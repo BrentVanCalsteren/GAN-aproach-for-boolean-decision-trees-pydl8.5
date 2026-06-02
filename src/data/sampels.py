@@ -13,21 +13,33 @@ class Samples:
             f.DESCRETE_PERCENTILE = 100
         self.feature_list : List[Feature] = []
         self.samples = np.array([])
+        self.feature_2D = np.array([])
         self.encoder = None
         if dataset:
             self.load_new_dataset(dataset,data_type)
 
     def load_new_dataset(self,dataset='iris',data_type='tabular'):
         loaded_data = loader(dataset_name=dataset, data_type=data_type)
-        samples = loaded_data.get_x_complete()
-        self.encoder = loaded_data.encoder
+        samples = loaded_data.complete_X
         self.load_samples(samples)
+        self.encoder = loaded_data.encoder
 
 
     def load_samples(self, samples:np.ndarray):
         np.random.shuffle(samples)
         self.samples = samples
-        self.feature_list = [Feature(feat) for feat in self.samples.T]
+        self.feature_list = [Feature(feat, self) for feat in self.samples.T]
+
+    def get_all_samples(self):
+        if self.feature_list:
+            if self.feature_2D.size > 0:
+                return self.feature_2D
+            else:
+                self.feature_2D = np.array([feat.feature_array for feat in self.feature_list]).T
+                return self.feature_2D
+        else:
+            raise ValueError('The feature list is not defined')
+
 
     def get_samples(self, slices: Optional[slice] = None, convert_to_int=False):
         if slices is None:
@@ -82,6 +94,8 @@ class Samples:
         return [feat.feature_type for feat in self.feature_list]
 
     def reverse_scale(self, s):
+        if not self.feature_list:
+            return s
         fifa = s.T
         reverse = []
         for i, feat in enumerate(self.feature_list):

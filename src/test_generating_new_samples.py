@@ -6,6 +6,7 @@ import numpy as np
 from pydl85 import DL85Classifier
 from sklearn.model_selection import train_test_split
 from src.usePydl.classifier.ensemble_classifier import EnsembleClassifier
+from src.usePydl.predictor.predictor import Predictor
 import random
 from sklearn.metrics import accuracy_score, classification_report
 
@@ -41,15 +42,17 @@ from sklearn.metrics import accuracy_score, classification_report
 # will be calculated based on the erros from splits at depth 3 under him ect.
 # (different depths will generate different clusters and does result into different errors)
 
+DO_CLASSIFICATION = False
+
 def test_data_generation():
-    sample_obj = Samples(dataset='MNIST_jpeg',data_type='image')
+    sample_obj = Samples(dataset='mnist_jpeg',data_type='image')
     #==========================
     #first simple test thats dataset load and generating splits work correctly
-    sample_obj.creat_splits(splits_each_feature=10)
+    sample_obj.creat_splits(splits_each_feature=20)
     splits = sample_obj.get_splits()
     samples = sample_obj.get_samples()
     # test image convertion
-    sample_obj.convert_to_image(samples=samples,name='original')
+    sample_obj.convert_to_image(samples=samples,name='original_encoded')
     same_splits = sample_obj.map_other_samples_to_same_splits(samples) #this is to check if the function works for mapping other samples features to the same boolean splits.
     print(f'bool convertion works correctly: {np.equal(splits, same_splits).all()}')
     #=========================================
@@ -57,7 +60,7 @@ def test_data_generation():
     splits_x = sample_obj.get_splits(slices=slice(0,-1))
     samples_y = sample_obj.get_samples(slices=slice(-1,None,None),convert_to_int=True) #convert back to int, dl classifier needs int labels
     train_x,test_x,train_y,test_y = train_test(splits=splits_x, samples=samples_y,test_size=0.2)
-    #classify_ensemble(train_x,test_x,train_y,test_y)
+    classify(train_x,test_x,train_y,test_y)
     #=================================================
     #now let's generate new data
     ensemble_pred = EnsemblePredictor(splits, samples,sample_obj.get_feature_types())
@@ -67,11 +70,11 @@ def test_data_generation():
     splits_gen = sample_obj.map_other_samples_to_same_splits(samples_gen,slices=slice(0,-1))
     y_gen = value_to_index(samples_gen[:, -1])
     #test on generated data alone
-    #classify_ensemble(splits_gen, test_x, y_gen, test_y)
+    classify(splits_gen, test_x, y_gen, test_y)
     splits_combined = np.vstack((train_x, splits_gen))
     y_combined = np.hstack((train_y, y_gen))
     # test on combined data
-    #classify_ensemble(splits_combined, test_x, y_combined, test_y)
+    classify(splits_combined, test_x, y_combined, test_y)
     sample_obj.convert_to_image(samples=samples_gen[:-1,:], name='generated')
 
 
@@ -83,28 +86,30 @@ def train_test(splits, samples, test_size=0.2):
     return splits_train, splits_test, samples_train, samples_test
 
 def classify_ensemble(x_train, x_test, y_train, y_test):
-    print("Running pydl classifier")
-    clasfi = EnsembleClassifier(max_depth=3, min_sup=1, time_limit=100)
-    clasfi.fit(x_train,y_train)
-    y_pred_test = clasfi.predict(x_test)
-    accuracy = accuracy_score(y_test, y_pred_test)
-    print(f"Accuracy: {accuracy:.4f}")
-    print("\nClassification Report:")
-    print(classification_report(y_test, y_pred_test))
+    if DO_CLASSIFICATION:
+        print("Running pydl classifier")
+        clasfi = EnsembleClassifier(max_depth=3, min_sup=1, time_limit=100)
+        clasfi.fit(x_train,y_train)
+        y_pred_test = clasfi.predict(x_test)
+        accuracy = accuracy_score(y_test, y_pred_test)
+        print(f"Accuracy: {accuracy:.4f}")
+        print("\nClassification Report:")
+        print(classification_report(y_test, y_pred_test))
 
-def classify_test_pydl(x_train, x_test, y_train, y_test):
-    depth = 1
-    uniques = np.unique(y_train)
-    while 2**depth < len(uniques):
-        depth += 1
-    print("Running pydl classifier")
-    clasfi = create_classifier_default(
-        x_bin=x_train, y=y_train, max_depth=depth, min_sup=1, time=300)
-    y_pred_test = clasfi.predict(x_test)
-    accuracy = accuracy_score(y_test, y_pred_test)
-    print(f"Accuracy: {accuracy:.4f}")
-    print("\nClassification Report:")
-    print(classification_report(y_test, y_pred_test))
+def classify(x_train, x_test, y_train, y_test):
+    if DO_CLASSIFICATION:
+        depth = 1
+        uniques = np.unique(y_train)
+        while 2**depth < len(uniques):
+            depth += 1
+        print("Running pydl classifier")
+        clasfi = create_classifier_default(
+            x_bin=x_train, y=y_train, max_depth=depth, min_sup=1, time=100)
+        y_pred_test = clasfi.predict(x_test)
+        accuracy = accuracy_score(y_test, y_pred_test)
+        print(f"Accuracy: {accuracy:.4f}")
+        print("\nClassification Report:")
+        print(classification_report(y_test, y_pred_test))
 
 def create_classifier_default(x_bin,y,max_depth=3,min_sup=2,time=100):
     clasfi = DL85Classifier(max_depth=max_depth,min_sup=min_sup, time_limit=time)

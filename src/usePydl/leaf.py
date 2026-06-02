@@ -5,25 +5,28 @@ from src.samplers.load_samplers import get_sampler_class
 def default_leaf_val(samples, sampler_types):
     def value(tids):
         features = np.array(samples[list(tids)]).T
-        type_to_feature_indices = {}
-        for i, stype in enumerate(sampler_types):
-            if stype not in type_to_feature_indices:
-                type_to_feature_indices[stype] = []
-            type_to_feature_indices[stype].append(i)
+        feature_type_dic = {}
+        for i, feat_type in enumerate(sampler_types):
+            if feat_type not in feature_type_dic:
+                feature_type_dic[feat_type] = [i]
+            else:
+                feature_type_dic[feat_type].append(i)
 
-        samplers_dict = {}
-        for stype, indices in type_to_feature_indices.items():
-            cls = get_sampler_class(stype)
-            if cls:
-                grouped_features = features[indices]
-                fitted_samplers = cls.fit_all_features_of_this_type(grouped_features)
-                samplers_dict[stype] = {
-                    "indices": indices,
-                    "samplers": fitted_samplers
-                }
+        samplers_list = []
+        for feat_type, indices in feature_type_dic.items():
+            sample_class = get_sampler_class(feat_type)
+            if sample_class:
+                all_feat_same_type = features[indices]
+                fitted_samplers = sample_class.fit_all_features_of_this_type(all_feat_same_type)
+                samplers_list.append({
+                    "feat_ids": indices,
+                    "samplers": fitted_samplers,
+                    "num_feat": features.shape[0],
+                    "sample_class": sample_class,
+                })
 
         return {"count": len(list(tids)),
-                "samplers_dict": samplers_dict,
+                "samplers_list": samplers_list,
                 "sample_ids": list(tids)}
 
     return value

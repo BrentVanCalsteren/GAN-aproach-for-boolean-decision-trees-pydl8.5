@@ -2,17 +2,21 @@ from typing import Dict
 
 import numpy as np
 import re
+
+from cvxpy.atoms.affine import concatenate
+
 from usePydl.predictor.predictor import Predictor
 from data.divisive_clustering_1D import DivisiveCluster
 
 DESCRETE_PERCENTILE = 5
-DIFFERENT_CLUSTERS_TO_CREATE = 10
-DIFFERENT_PERCETILE_BINS_TO_CREATE = 10
+DIFFERENT_CLUSTERS_TO_CREATE = 20
+DIFFERENT_PERCETILE_BINS_TO_CREATE = 20
 
 class Feature: #is a d array of datapoints
-    def __init__(self, raw_feature_data:np.ndarray):
+    def __init__(self, raw_feature_data:np.ndarray, sampel_class):
         self.min_val = 0
         self.max_val = 0
+        self.sampel_class = sampel_class
         self.active_splits = {}
         self.errors = []
         self.isDiscrete = False
@@ -40,9 +44,10 @@ class Feature: #is a d array of datapoints
         unique_vals = np.unique(self.feature_array)
         if len(unique_vals) <= (self.feature_array.shape[0] * DESCRETE_PERCENTILE // 100):
             self.isDiscrete = True
+            print('discrete feature')
             self.feature_type = 'multinomial'
             return
-        self.feature_type = 'multi_gaussian'
+        self.feature_type = 'single_gaussian'
 
     def feature_to_samples(self):
         return self.feature_array.reshape(-1, 1)
@@ -75,12 +80,16 @@ class Feature: #is a d array of datapoints
         current_indepent_types = ["1D_clustering to create intervals with",
                                   "take 1 value and split on it",
                                   "create intervals with percentile binning"]
-        partly_splits = n_splits // len(current_indepent_types)
-        self.indep_splits_single_value(partly_splits)
-        self.indep_splits_cluster_interval(partly_splits)
-        self.indep_splits_percentile_binning(partly_splits)
+        all_splits = self.indep_splits_single_value()
+        splits = self.indep_splits_cluster_interval()
+        all_splits = all_splits | splits
+        splits = self.indep_splits_percentile_binning()
+        all_splits = all_splits | splits
+        self.calc_best_splits_with_gini_score(all_splits, n_splits)
+        #self.calc_best_splits_with_entropy_score(all_splits,n_splits)
 
-    def indep_splits_single_value(self, n_splits):
+
+    def indep_splits_single_value(self):
         def generate_all_possible_splits():
             splits = {}
             unique_vals = np.unique(self.feature_array)
@@ -111,11 +120,11 @@ class Feature: #is a d array of datapoints
             vals = list(splits.values())
             for i in range(len(keys)):
                 self.active_splits[keys[i]] = vals[i]
-            return (splits, [0] * len(splits))
-        self.calc_best_splits_with_entropy_score(all_splits, n_splits)
+                print(f'found discrete splits: {len(splits)}')
+        return all_splits
 
-    def indep_splits_cluster_interval(self, n_splits):
-        if self.isDiscrete: return
+    def indep_splits_cluster_interval(self):
+        if self.isDiscrete: return {}
         all_splits = {}
         cluster = DivisiveCluster()
         for i in range(2, DIFFERENT_CLUSTERS_TO_CREATE):
@@ -125,10 +134,10 @@ class Feature: #is a d array of datapoints
             for interval in intervals:
                 result = np.where((self.feature_array >= interval[0]) & (self.feature_array <= interval[1]), 1, 0)
                 all_splits[f'interval_{interval[0]}_{interval[1]}'] = result
-        self.calc_best_splits_with_entropy_score(all_splits, n_splits)
+        return all_splits
 
-    def indep_splits_percentile_binning(self, n_splits):
-        if self.isDiscrete: return
+    def indep_splits_percentile_binning(self):
+        if self.isDiscrete: return {}
         all_splits = {}
         for i in range(2, DIFFERENT_PERCETILE_BINS_TO_CREATE):
             start = 100 // i
@@ -145,7 +154,7 @@ class Feature: #is a d array of datapoints
                     result = np.where(
                         (self.feature_array >= thresholds[index]) & (self.feature_array <= thresholds[index + 1]), 1, 0)
                     all_splits[f'interval_{thresholds[index]}_{thresholds[index + 1]}'] = result
-        self.calc_best_splits_with_entropy_score(all_splits, n_splits)
+        return all_splits
 
     ##############################################################################
     ############## creating boolean splits that are dependent on other features#############
@@ -161,6 +170,44 @@ class Feature: #is a d array of datapoints
     ##############################################################################
     ############## function for picking best splits for top split #############
     ############################################################################################"
+    def calc_best_splits_with_gini_score(self, all_splits, n_splits):
+        all_splits = self.remove_duplicate_splits(all_splits)
+        if not all_splits:
+            return
+        keys = np.array(list(all_splits.keys()))
+        possible_splits = np.array(list(all_splits.values()))
+        feat_arr = self.feature_array
+
+        scores = []
+        for split in possible_splits:
+            left_mask = (split == 0)
+            right_mask = (split == 1)
+
+            n_left = np.sum(left_mask)
+            n_right = np.sum(right_mask)
+
+            if n_left < 2 or n_right < 2:
+                total_error = 10e6
+            else:
+                left_feat = feat_arr[left_mask]
+                right_feat = feat_arr[right_mask]
+                err_left = np.max(left_feat) - np.min(left_feat)
+                err_right = np.max(right_feat) - np.min(right_feat)
+                total_error = err_left + err_right
+
+            scores.append(total_error)
+
+        scores = np.array(scores)
+        best_indices = np.argsort(scores)
+
+        for idx in best_indices[:n_splits]:
+            if scores[idx] >= 10e6:
+                continue
+            split_key = str(keys[idx])
+            split_val = possible_splits[idx]
+            print(f'found split: {split_key} with error {scores[idx]:.4f}')
+            self.errors.append(scores[idx])
+            self.active_splits[split_key] = split_val
 
     def calc_best_splits_with_entropy_score(self, all_splits, n_splits):
         # uses pydl tree, generate a tree on all possible splits of depth 1, maybe this does not aply when feature
@@ -172,17 +219,22 @@ class Feature: #is a d array of datapoints
         possible_splits = np.array(list(all_splits.values()))
         good_splits_dict = {}
         while len(good_splits_dict) < n_splits and possible_splits.shape[0] > 0:
-            pred = Predictor(possible_splits.T, self.feature_to_samples(), [self.feature_type],
-                             max_depth=1, min_sup=1,time=100)
+            pred = Predictor(possible_splits.T, self.sampel_class.get_all_samples(), self.sampel_class.get_feature_types(),
+                             max_depth=2, min_sup=1,time=100)
             tree = pred.dl_predictor.tree_
-            print(tree.keys())
+            def calculate_tree_error(tr):
+                if 'left' not in tr and 'right' not in tr:
+                    return tr.get('error', 0.0)
+                left_error = calculate_tree_error(tr['left']) if 'left' in tree else 0.0
+                right_error = calculate_tree_error(tr['right']) if 'right' in tree else 0.0
+
+                return left_error + right_error
+            total_error = calculate_tree_error(tree)
             try:
                 split_id = tree['feat']
-                total_error = tree['left']['error'] + tree['right']['error']
             except KeyError:
                 split_id = 0
-                total_error = tree['error']
-            print(f'found split: {keys[split_id]}')
+            print(f'found split: {keys[split_id]} - error: {total_error}')
             good_splits_dict[keys[split_id]] = possible_splits[split_id]
             self.errors.append(total_error)
             self.active_splits[keys[split_id]] = possible_splits[split_id]

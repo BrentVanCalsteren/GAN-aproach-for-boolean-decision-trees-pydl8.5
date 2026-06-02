@@ -23,11 +23,16 @@ class MultivariateGaussianSampler(Sampler):
     def score_feature(self, feature: np.ndarray) -> np.ndarray:
         if feature.ndim == 1:
             feature = feature.reshape(1, -1)
-        return self.dist.pdf(feature)
+
+        raw_pdf = self.dist.pdf(feature)
+        max_pdf = self.dist.pdf(self.dist.mean)
+        scaled_score = raw_pdf / max_pdf
+        return scaled_score
 
     def score_avg(self, feature):
         return np.mean(self.score_feature(feature))
 
+    #this takes very long to generate good samples when there are a lot of features
     def sample(self, n_samples=1):
         samples = self.dist.rvs(size=n_samples)
         if n_samples == 1 and samples.ndim == 1:
@@ -48,18 +53,15 @@ class MultivariateGaussianSampler(Sampler):
         return [sampler]
 
     @classmethod
-    def generate_new_samples_for_all_features_of_this_type(cls, n: int, conf_thresh: float, samplers: list) -> np.ndarray:
+    def generate_new_samples_for_all_features_of_this_type(cls, indices,gen_feats_matrix, conf_thresh: float, samplers: list):
         sampler = samplers[0]
-        gen_feat_good = np.empty((0, sampler.mean.shape[0]))
-        while gen_feat_good.shape[0] < n:
-            gen_feat = sampler.sorted_samples(n=n)
-            scores = sampler.score_feature(gen_feat)
-            
-            valid_feats = gen_feat[scores >= conf_thresh]
-            if valid_feats.shape[0] > 0:
-                if gen_feat_good.shape[0] > 0:
-                    gen_feat_good = np.vstack((gen_feat_good, valid_feats))
-                else:
-                    gen_feat_good = valid_feats
-        
-        return gen_feat_good[:n]
+        n = gen_feats_matrix.shape[1]
+        good_samples = []
+        while len(good_samples) < n:
+            sub_samples = sampler.sorted_samples(n=n).T#returns sample dim (n_samples, n_feat_trained_on)
+            scores = sampler.score_feature(sub_samples).T
+            valid_sub_samples = sub_samples[scores >= conf_thresh]
+            if valid_sub_samples.shape[0] > 0:
+                    for sample in valid_sub_samples:
+                        good_samples.append(sample)
+        gen_feats_matrix[indices] = np.array(good_samples)[:n].T

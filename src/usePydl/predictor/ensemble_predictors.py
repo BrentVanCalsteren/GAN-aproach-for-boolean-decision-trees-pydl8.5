@@ -4,38 +4,37 @@ import numpy as np
 
 MIN_NUM_SAMPLES = 10
 
+
 class EnsemblePredictor(Predictor):
-    def __init__(self,boolean_splits, samples, sampler_types):
+    def __init__(self,splits, samples, sampler_types):
+        print(f"Starting Ensemble Predictor on {len(samples)} samples...")
         self.child_predictors = {}
-        self.samples = samples
-        self.sample_types = sampler_types
         super().__init__(
-            boolean_splits=boolean_splits,
+            splits=splits,
             samples=samples,
             sampler_types=sampler_types,
             max_depth=2,
             min_sup=1,
             time=100
         )
-        self.fit()
-        self.generate_child_preds()
+        self.generate_child_preds(samples, splits, sampler_types)
 
 
-    def generate_child_preds(self):
+    def generate_child_preds(self,samples,splits, sampler_types):
         leafs = get_leaf_vals(self.dl_predictor.tree_)
         samplesIDs_per_leaf = [leaf["value"]["sample_ids"] for leaf in leafs]
         for i, samplesIDs in enumerate(samplesIDs_per_leaf):
-            if len(samplesIDs) >= MIN_NUM_SAMPLES and len(samplesIDs) != self.samples.shape[0]:
-                print(f"Have enough samples to generate extra predictors, num samples: {len(samplesIDs)}")
-                sub_samples = np.array(self.samples[samplesIDs])
-                sub_samples_bin = np.array(self.samples_bin[samplesIDs])
-                self.child_predictors.update({i:EnsemblePredictor(sub_samples_bin, sub_samples, self.sample_types)})
+            if len(samplesIDs) >= MIN_NUM_SAMPLES and len(samplesIDs) != samples.shape[0]:
+                sub_samples = np.array(samples[samplesIDs])
+                sub_splits = np.array(splits[samplesIDs])
+                print(f"Have enough samples {len(samplesIDs)} to generate extra predictors, num samples: {len(samplesIDs)}")
+                self.child_predictors.update({i:EnsemblePredictor(sub_splits, sub_samples, sampler_types)})
 
 
     def generate_new_data(self, n_new_samples=100, conf_tresh=0.8, mode: str = "keep_counts") -> np.ndarray:
         new_samples = []
         leafs = get_leaf_vals(self.dl_predictor.tree_)
-        samplers_x_leafs = [leaf["value"]["samplers_dict"] for leaf in leafs]
+        samplers_x_leafs = [leaf["value"]["samplers_list"] for leaf in leafs]
         samples_in_leaf = np.array([leaf["value"]["count"] for leaf in leafs])
         total_count = samples_in_leaf.sum()
 

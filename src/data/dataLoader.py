@@ -7,8 +7,7 @@ from pathlib import Path
 import numpy as np
 from typing import Optional
 from PIL import Image
-
-from data.encoders.encoder_PCA import PCAEncoder
+from data.encoders.encoder_loader import load_encoder
 
 class DatasetLoader:
     """Simplified loader for CSV/data files. Assumes first row is header."""
@@ -16,8 +15,8 @@ class DatasetLoader:
     MISSING_VAL_STRINGS = ['?', 'NA', 'N/A', 'null', 'NULL', 'None', '', ' ']
     RESOLUTION = (24, 24)
     LABEL_INDEX = -1
-    MAX_IM_EACH_CLASS = 50
-    MAX_NUM_FEATS = 50
+    MAX_IM_EACH_CLASS = 40
+    CAP_NUM_FEATS = 36
 
     def __init__(self, file_path):
         self.file_path = Path(file_path)
@@ -27,6 +26,13 @@ class DatasetLoader:
         self.complete_Y: Optional[np.ndarray] = None
         self.missing_X: Optional[np.ndarray] = None
         self.missing_Y: Optional[np.ndarray] = None
+        self.fix_image_args()
+
+    def fix_image_args(self):
+        sqrt_out = math.ceil(math.sqrt(self.CAP_NUM_FEATS))
+        self.CAP_NUM_FEATS = sqrt_out ** 2
+        if not self.RESOLUTION[0] == self.RESOLUTION[1]:
+            self.RESOLUTION = (self.RESOLUTION[0], self.RESOLUTION[0])
 
     def load_tabular_data(self):
         try:
@@ -101,7 +107,7 @@ class DatasetLoader:
         features = np.array(features)
         labels = np.array(labels).reshape(-1, 1)
 
-        if features.shape[1] > self.MAX_NUM_FEATS:
+        if features.shape[1] > self.CAP_NUM_FEATS:
             reduced_features = self.reduce_features(features, greyscale)
             self.complete_X = np.hstack((reduced_features, labels))
         else:
@@ -109,36 +115,13 @@ class DatasetLoader:
 
     def reduce_features(self, features, greyscale):
         print("Reducing features...")
-        self.encoder = PCAEncoder(self.MAX_NUM_FEATS)
-        reduced_features = self.encoder.fit_transform(features)
-        self.encoder.original_shape = (-1, self.RESOLUTION[0], self.RESOLUTION[1], 1 if greyscale else 3)
+        self.encoder = load_encoder(samples=features, type='pca', output_dim=self.CAP_NUM_FEATS)
+        reduced_features = self.encoder.transform(features)
         return reduced_features
 
-    def _convert_features(self, samples: np.ndarray) -> np.ndarray:
-        converted = samples.copy().astype(object)
-        for i in range(samples.shape[1]):
-            col = samples[:, i]
-            # Replace missing placeholders with NaN
-            col_clean = np.where(np.isin(col, self.MISSING_VAL_STRINGS), np.nan, col)
-            # Try numeric conversion
-            num_col = pd.to_numeric(col_clean, errors='coerce')
-            if (~pd.isna(num_col)).sum() / len(num_col) >= 0.5:
-                converted[:, i] = num_col
-            else:
-                converted[:, i] = np.where(np.isin(col, self.MISSING_VAL_STRINGS), '', col.astype(str))
-        return converted
-
-    # ---------- Getters ----------
-    def get_x_all(self) -> np.ndarray:
-        return self.data_samples_X
-
-    def get_x_complete(self) -> np.ndarray:
-        return self.complete_X
-
-    def get_x_missing(self) -> np.ndarray:
-        return self.missing_X
-
-
+########################################""
+############## Other functions
+##########################################"
 def load_dataloader_by_name(dataset_name: str, main_dir: str = 'src',
                             data_subdir: str = 'datasets', data_type='tabular') -> DatasetLoader:
 
