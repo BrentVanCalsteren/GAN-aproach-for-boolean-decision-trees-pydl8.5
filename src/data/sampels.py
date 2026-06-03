@@ -59,19 +59,33 @@ class Samples:
         for feat in self.feature_list:
             feat.create_all_independent_splits(splits_each_feature)
 
-    def get_splits(self, slices: Optional[slice] = None):
+    def get_splits_bool(self, slices: Optional[slice] = None):
         if slices is None:
             sliced = self.feature_list
         else:
             sliced = self.feature_list[slices]
         all_bool_splits = np.array([])
         for feat in sliced:
-            splits = feat.get_splits_as_array()
+            splits = feat.get_splits_bool()
             if all_bool_splits.size > 0:
                 all_bool_splits = np.vstack((all_bool_splits, splits))
             else:
                 all_bool_splits = splits
         return np.array(all_bool_splits).T
+
+    def get_splits_val(self, slices: Optional[slice] = None):
+        if slices is None:
+            sliced = self.feature_list
+        else:
+            sliced = self.feature_list[slices]
+        all_bool_splits = np.array([])
+        for feat in sliced:
+            splits = feat.get_splits_val()
+            if all_bool_splits.size > 0:
+                all_bool_splits = np.hstack((all_bool_splits, splits))
+            else:
+                all_bool_splits = splits
+        return np.array(all_bool_splits)
 
     def map_other_samples_to_same_splits(self,other_samples : np.ndarray, slices: Optional[slice] = None):
         if not self.feature_list:
@@ -90,8 +104,8 @@ class Samples:
         all_splits = np.vstack(all_splits).T
         return all_splits
 
-    def get_feature_types(self):
-        return [feat.feature_type for feat in self.feature_list]
+    def get_feature_info(self):
+        return [feat.feature_info for feat in self.feature_list]
 
     def reverse_scale(self, s):
         if not self.feature_list:
@@ -110,12 +124,17 @@ class Samples:
         return samples_to_decode
 
     def convert_to_image(self,samples, name='default.png'):
-        reverse_scaled = self.reverse_scale(samples)
-        decoded_samples = self.decode_samples(reverse_scaled[:10, :-1])
-        image = array_to_image(decoded_samples[0])
-        if not '.' in name:
-            name = name + '.png'
-        save_image_to_folder(image, "output", name)
+        reverse_scaled = self.reverse_scale(samples[:50])
+        labels = reverse_scaled[:, -1]
+        value_5s = reverse_scaled[labels == 5.0]
+        decoded_samples = self.decode_samples(value_5s[:, :-1])
+        print(f'label of image is {5}')
+        for i,sample in enumerate(decoded_samples):
+            image = array_to_image(sample)
+            if not '.' in name:
+                fixed_name = name + f'_{i}.png'
+            else: fixed_name = name
+            save_image_to_folder(image, f"output", fixed_name)
 
 #helpers
 def value_to_index(array):

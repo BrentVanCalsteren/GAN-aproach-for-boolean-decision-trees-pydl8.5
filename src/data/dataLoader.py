@@ -15,8 +15,8 @@ class DatasetLoader:
     MISSING_VAL_STRINGS = ['?', 'NA', 'N/A', 'null', 'NULL', 'None', '', ' ']
     RESOLUTION = (24, 24)
     LABEL_INDEX = -1
-    MAX_IM_EACH_CLASS = 40
-    CAP_NUM_FEATS = 36
+    MAX_IM_EACH_CLASS = 60
+    CAP_NUM_FEATS = 60
 
     def __init__(self, file_path):
         self.file_path = Path(file_path)
@@ -122,7 +122,7 @@ class DatasetLoader:
 ########################################""
 ############## Other functions
 ##########################################"
-def load_dataloader_by_name(dataset_name: str, main_dir: str = 'src',
+def load_dataloader_by_name(dataset_name: str, main_dir: str = 'GAN-aproach-for-boolean-decision-trees-pydl8.5',
                             data_subdir: str = 'datasets', data_type='tabular') -> DatasetLoader:
 
     #Find and load a dataset by name from main_dir/data_subdir/dataset_name/dataset_name.csv/.data

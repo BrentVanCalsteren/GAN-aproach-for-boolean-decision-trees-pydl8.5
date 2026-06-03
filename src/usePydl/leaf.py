@@ -2,33 +2,9 @@ import numpy as np
 from src.samplers.load_samplers import get_sampler_class
 
 #default leaf value -> return the samplers
-def default_leaf_val(samples, sampler_types):
+def just_return_sample_ids():
     def value(tids):
-        features = np.array(samples[list(tids)]).T
-        feature_type_dic = {}
-        for i, feat_type in enumerate(sampler_types):
-            if feat_type not in feature_type_dic:
-                feature_type_dic[feat_type] = [i]
-            else:
-                feature_type_dic[feat_type].append(i)
-
-        samplers_list = []
-        for feat_type, indices in feature_type_dic.items():
-            sample_class = get_sampler_class(feat_type)
-            if sample_class:
-                all_feat_same_type = features[indices]
-                fitted_samplers = sample_class.fit_all_features_of_this_type(all_feat_same_type)
-                samplers_list.append({
-                    "feat_ids": indices,
-                    "samplers": fitted_samplers,
-                    "num_feat": features.shape[0],
-                    "sample_class": sample_class,
-                })
-
-        return {"count": len(list(tids)),
-                "samplers_list": samplers_list,
-                "sample_ids": list(tids)}
-
+        return {"sample_ids": list(tids)}
     return value
 
 
@@ -40,7 +16,7 @@ def empty_val():
 #-------------------------------------------------
 
 #helpers for looking at leaf data
-def get_leaf_vals(tree):
+def get_leafs(tree):
     leaves = []
     def recurse(node):
         if "value" in node:

@@ -3,7 +3,7 @@ import numpy as np
 from src.samplers.load_samplers import create_sampler
 #continue errors
 #/////////////////////////////////////
-#default predictor error
+#default predictors error
 def predictor_error(samples: np.ndarray, sample_types: List[str]):
     def error(tids):
         sub_samples = samples[list(tids)]
@@ -30,7 +30,7 @@ def reduce_interval_sizes(samples: np.ndarray):
         max_per_row = features.max(axis=1)
         min_per_row = features.min(axis=1)
         diff = max_per_row - min_per_row
-        return np.sum(diff)/diff.shape[0]
+        return np.sum(diff)
     return error
 
 
@@ -42,7 +42,6 @@ def mse_error(samples: np.ndarray):
             return 1
         mean = np.mean(sub_samples, axis=0)
         return np.mean(np.sum((sub_samples - mean) ** 2, axis=1))
-
     return error
 
 def mae_error(samples):

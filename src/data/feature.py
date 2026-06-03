@@ -5,7 +5,7 @@ import re
 
 from cvxpy.atoms.affine import concatenate
 
-from usePydl.predictor.predictor import Predictor
+from usePydl.predictors.predictor import Predictor
 from data.divisive_clustering_1D import DivisiveCluster
 
 DESCRETE_PERCENTILE = 5
@@ -20,7 +20,7 @@ class Feature: #is a d array of datapoints
         self.active_splits = {}
         self.errors = []
         self.isDiscrete = False
-        self.feature_type = None #tells predictor which sampler to use
+        self.feature_info = [None, None]  #tells predictors which sampler to use, how many bool plits
         feature_array = standardize_feature(raw_feature_data)
         self.feature_array = self.scale(feature_array)
         self.check_descrete()
@@ -45,15 +45,18 @@ class Feature: #is a d array of datapoints
         if len(unique_vals) <= (self.feature_array.shape[0] * DESCRETE_PERCENTILE // 100):
             self.isDiscrete = True
             print('discrete feature')
-            self.feature_type = 'multinomial'
+            self.feature_info[0] = 'multinomial'
             return
-        self.feature_type = 'single_gaussian'
+        self.feature_info[0] = 'single_gaussian'
 
     def feature_to_samples(self):
         return self.feature_array.reshape(-1, 1)
 
-    def get_splits_as_array(self):
+    def get_splits_bool(self):
         return np.array(list(self.active_splits.values())).squeeze()
+
+    def get_splits_val(self):
+        return np.array(list(self.active_splits.keys())).squeeze()
 
     def map_feature_to_active_splits(self, new_feature):
         keys = list(self.active_splits.keys())
@@ -62,9 +65,11 @@ class Feature: #is a d array of datapoints
             matches = re.findall(r"[-+]?\d*\.\d+|\d+", key)
             vals = [float(x) for x in matches]
             if 'bigger' in key:
-                result = np.where(new_feature <= vals[0], 0, 1)
+                result = np.where(new_feature > vals[0], 1, 0)
             elif 'even' in key:
                 result = np.where(new_feature == vals[0], 1, 0)
+            elif 'smaller' in key:
+                result = np.where(new_feature < vals[0], 1, 0)
             elif 'interval' in key:
                 result = np.where((new_feature >= vals[0]) & (new_feature <= vals[1]), 1, 0)
             else:
@@ -106,21 +111,18 @@ class Feature: #is a d array of datapoints
                 def splits_continue():
                     mapped = {}
                     for val in unique_vals:
-                        result = np.where(self.feature_array <= val, 0, 1)
+                        result = np.where(self.feature_array == val, 1, 0)
+                        mapped[f'equal_{val}'] = result
+                        result = np.where(self.feature_array > val, 1, 0)
                         mapped[f'bigger_{val}'] = result
+                        result = np.where(self.feature_array < val, 1, 0)
+                        mapped[f'smaller_{val}'] = result
                     return mapped
 
                 splits = splits_continue()
             return splits
 
         all_splits = generate_all_possible_splits()
-        if self.isDiscrete:
-            splits = self.remove_duplicate_splits(all_splits)
-            keys = list(splits.keys())
-            vals = list(splits.values())
-            for i in range(len(keys)):
-                self.active_splits[keys[i]] = vals[i]
-                print(f'found discrete splits: {len(splits)}')
         return all_splits
 
     def indep_splits_cluster_interval(self):
@@ -208,6 +210,7 @@ class Feature: #is a d array of datapoints
             print(f'found split: {split_key} with error {scores[idx]:.4f}')
             self.errors.append(scores[idx])
             self.active_splits[split_key] = split_val
+        self.feature_info[1] = len(list(self.active_splits.values()))
 
     def calc_best_splits_with_entropy_score(self, all_splits, n_splits):
         # uses pydl tree, generate a tree on all possible splits of depth 1, maybe this does not aply when feature
@@ -240,6 +243,7 @@ class Feature: #is a d array of datapoints
             self.active_splits[keys[split_id]] = possible_splits[split_id]
             possible_splits = np.delete(possible_splits, split_id, axis=0)
             keys = np.delete(keys, split_id, axis=0)
+        self.feature_info[1] = len(list(self.active_splits.values()))
 
     def remove_duplicate_splits(self, new_pos_splits: Dict[str, list]):
         #no need for finding the same splits (makes the model not perfom better in any way

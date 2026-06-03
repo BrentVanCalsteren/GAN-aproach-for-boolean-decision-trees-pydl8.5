@@ -1,12 +1,12 @@
 from pandas.core import sample
 
-from src.usePydl.predictor.ensemble_predictors import EnsemblePredictor
+from src.usePydl.predictors.ensemble_predictors import EnsemblePredictor
 from src.data.sampels import Samples
 import numpy as np
 from pydl85 import DL85Classifier
 from sklearn.model_selection import train_test_split
 from src.usePydl.classifier.ensemble_classifier import EnsembleClassifier
-from src.usePydl.predictor.predictor import Predictor
+from src.usePydl.predictors.predictor import Predictor
 import random
 from sklearn.metrics import accuracy_score, classification_report
 
@@ -29,7 +29,7 @@ from sklearn.metrics import accuracy_score, classification_report
 # see feature.py how these get calculated
 # after generating some possible good splits, these will be used to create a tree.
 # since dl is a form of clustering you can give it costum (error/ distance functions)
-# tree (predictor.py) uses default error function (in eror_fun.py) for picking good splits and
+# tree (predictors.py) uses default error function (in eror_fun.py) for picking good splits and
 # leaf vals will return default leaf val in leaf.py
 #==============================================================================
 # right now if have to sample functions i use: 1) one that just tries to make each feature interval as small as possible
@@ -45,25 +45,27 @@ from sklearn.metrics import accuracy_score, classification_report
 DO_CLASSIFICATION = False
 
 def test_data_generation():
-    sample_obj = Samples(dataset='mnist_jpeg',data_type='image')
+    sample_obj = Samples(dataset='iris',data_type='tabular')
     #==========================
     #first simple test thats dataset load and generating splits work correctly
-    sample_obj.creat_splits(splits_each_feature=20)
-    splits = sample_obj.get_splits()
+    sample_obj.creat_splits(splits_each_feature=10)
+    splits_bool = sample_obj.get_splits_bool()
+    splits_val = sample_obj.get_splits_val()
     samples = sample_obj.get_samples()
     # test image convertion
-    sample_obj.convert_to_image(samples=samples,name='original_encoded')
+    #sample_obj.convert_to_image(samples=samples,name='original_encoded')
     same_splits = sample_obj.map_other_samples_to_same_splits(samples) #this is to check if the function works for mapping other samples features to the same boolean splits.
-    print(f'bool convertion works correctly: {np.equal(splits, same_splits).all()}')
+    print(f'bool convertion works correctly: {np.equal(splits_bool, same_splits).all()}')
     #=========================================
     #now let's test the quality of the splits, good splits will result into good classification with dlclassifier
-    splits_x = sample_obj.get_splits(slices=slice(0,-1))
+    splits_x = sample_obj.get_splits_bool(slices=slice(0,-1))
     samples_y = sample_obj.get_samples(slices=slice(-1,None,None),convert_to_int=True) #convert back to int, dl classifier needs int labels
     train_x,test_x,train_y,test_y = train_test(splits=splits_x, samples=samples_y,test_size=0.2)
     classify(train_x,test_x,train_y,test_y)
     #=================================================
     #now let's generate new data
-    ensemble_pred = EnsemblePredictor(splits, samples,sample_obj.get_feature_types())
+    ensemble_pred = Predictor(splits_bool, samples,max_depth=3, min_sup=1, time=100)
+    samplers = ensemble_pred.create_samplers(splits_val,sample_obj.get_feature_info())
     samples_gen = ensemble_pred.generate_new_data(n_new_samples=1000, conf_tresh=0.8) #conf_tresh is how high the features for each sample need to score
     #=================================================
     #now let's see if classification is better with extra generated data

@@ -1,6 +1,6 @@
 import numpy as np
-from src.usePydl.predictor import default_predictor,gaussian_1D_predictor,uniform_predictor
-from src.usePydl.predictor.predictor import Predictor
+from src.usePydl.predictors import default_predictor,gaussian_1D_predictor,uniform_predictor
+from src.usePydl.predictors.predictor import Predictor
 from src.data.Dataset import *
 
 import time
@@ -100,7 +100,7 @@ def benchmark_samples():
     for number in range(samples,max_samples,increment):
         sizes.append(number)
         start = time.perf_counter()
-        #predictor = UNiPredictor(bool_mat[:number,:100],num_mat[:number,:100], max_depth=3,min_sup=1)
+        #predictors = UNiPredictor(bool_mat[:number,:100],num_mat[:number,:100], max_depth=3,min_sup=1)
         duration = time.perf_counter() - start
         times.append(duration)
 

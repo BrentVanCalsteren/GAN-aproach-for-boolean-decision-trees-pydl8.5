@@ -1,5 +1,5 @@
-from src.usePydl.predictor.predictor import Predictor
-from src.usePydl.leaf import get_leaf_vals
+from src.usePydl.predictors.predictor import Predictor
+from src.usePydl.leaf import get_leafs
 import numpy as np
 
 MIN_NUM_SAMPLES = 10
@@ -21,7 +21,7 @@ class EnsemblePredictor(Predictor):
 
 
     def generate_child_preds(self,samples,splits, sampler_types):
-        leafs = get_leaf_vals(self.dl_predictor.tree_)
+        leafs = get_leafs(self.dl_predictor.tree_)
         samplesIDs_per_leaf = [leaf["value"]["sample_ids"] for leaf in leafs]
         for i, samplesIDs in enumerate(samplesIDs_per_leaf):
             if len(samplesIDs) >= MIN_NUM_SAMPLES and len(samplesIDs) != samples.shape[0]:
@@ -33,7 +33,7 @@ class EnsemblePredictor(Predictor):
 
     def generate_new_data(self, n_new_samples=100, conf_tresh=0.8, mode: str = "keep_counts") -> np.ndarray:
         new_samples = []
-        leafs = get_leaf_vals(self.dl_predictor.tree_)
+        leafs = get_leafs(self.dl_predictor.tree_)
         samplers_x_leafs = [leaf["value"]["samplers_list"] for leaf in leafs]
         samples_in_leaf = np.array([leaf["value"]["count"] for leaf in leafs])
         total_count = samples_in_leaf.sum()
