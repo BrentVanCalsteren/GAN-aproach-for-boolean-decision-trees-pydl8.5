@@ -1,27 +1,23 @@
 import math
 import os
-
 import PIL
 import pandas as pd
 from pathlib import Path
 import numpy as np
 from typing import Optional
 from PIL import Image
-from data.encoders.encoder_loader import load_encoder
+from src.data.encoders.encoder_loader import load_encoder
 
 class DatasetLoader:
-    """Simplified loader for CSV/data files. Assumes first row is header."""
-
     MISSING_VAL_STRINGS = ['?', 'NA', 'N/A', 'null', 'NULL', 'None', '', ' ']
     RESOLUTION = (24, 24)
     LABEL_INDEX = -1
-    MAX_IM_EACH_CLASS = 60
-    CAP_NUM_FEATS = 60
+    MAX_IM_EACH_CLASS = 50
+    CAP_NUM_FEATS = 50
 
     def __init__(self, file_path):
         self.file_path = Path(file_path)
         self.encoder = None
-        #split samples
         self.complete_X: Optional[np.ndarray] = None
         self.complete_Y: Optional[np.ndarray] = None
         self.missing_X: Optional[np.ndarray] = None
@@ -49,13 +45,11 @@ class DatasetLoader:
             self.complete_X = raw_samples[~missing_mask]
             self.missing_X = raw_samples[missing_mask]
 
-            print(f"Loaded {raw_samples.shape[0]} "
-                  f"samples: complete {self.complete_X.shape[0]},missing {self.missing_X.shape[0]}")
+            print(f"Loaded {raw_samples.shape[0]} samples: complete {self.complete_X.shape[0]}, missing {self.missing_X.shape[0]}")
         except Exception as e:
             raise RuntimeError(f"Error loading dataset: {e}")
 
     def _get_missing_mask(self, data: np.ndarray) -> np.ndarray:
-        """Return boolean mask for rows containing any missing placeholder."""
         mask = np.zeros(data.shape[0], dtype=bool)
         for col in range(data.shape[1]):
             col_data = data[:, col].astype(str)
@@ -119,13 +113,8 @@ class DatasetLoader:
         reduced_features = self.encoder.transform(features)
         return reduced_features
 
-########################################""
-############## Other functions
-##########################################"
 def load_dataloader_by_name(dataset_name: str, main_dir: str = 'GAN-aproach-for-boolean-decision-trees-pydl8.5',
                             data_subdir: str = 'datasets', data_type='tabular') -> DatasetLoader:
-
-    #Find and load a dataset by name from main_dir/data_subdir/dataset_name/dataset_name.csv/.data
     file_path = Path().resolve()
     str_path = str(file_path)
     index = str_path.find(main_dir)

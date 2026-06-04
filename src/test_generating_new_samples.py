@@ -1,6 +1,6 @@
 from pandas.core import sample
 
-from src.usePydl.predictors.ensemble_predictors import EnsemblePredictor
+from src.usePydl.predictors.ensemble_predictors import EnsemblePredictor, build_ensemble_tree_iteratively
 from src.data.sampels import Samples
 import numpy as np
 from pydl85 import DL85Classifier
@@ -45,7 +45,7 @@ from sklearn.metrics import accuracy_score, classification_report
 DO_CLASSIFICATION = False
 
 def test_data_generation():
-    sample_obj = Samples(dataset='iris',data_type='tabular')
+    sample_obj = Samples(dataset='MNIST_jpeg',data_type='image')
     #==========================
     #first simple test thats dataset load and generating splits work correctly
     sample_obj.creat_splits(splits_each_feature=10)
@@ -53,7 +53,7 @@ def test_data_generation():
     splits_val = sample_obj.get_splits_val()
     samples = sample_obj.get_samples()
     # test image convertion
-    #sample_obj.convert_to_image(samples=samples,name='original_encoded')
+    sample_obj.convert_to_image(samples=samples,name='original_encoded')
     same_splits = sample_obj.map_other_samples_to_same_splits(samples) #this is to check if the function works for mapping other samples features to the same boolean splits.
     print(f'bool convertion works correctly: {np.equal(splits_bool, same_splits).all()}')
     #=========================================
@@ -64,9 +64,9 @@ def test_data_generation():
     classify(train_x,test_x,train_y,test_y)
     #=================================================
     #now let's generate new data
-    ensemble_pred = Predictor(splits_bool, samples,max_depth=3, min_sup=1, time=100)
-    samplers = ensemble_pred.create_samplers(splits_val,sample_obj.get_feature_info())
-    samples_gen = ensemble_pred.generate_new_data(n_new_samples=1000, conf_tresh=0.8) #conf_tresh is how high the features for each sample need to score
+    ensemble_pred = build_ensemble_tree_iteratively(splits_bool, samples)
+    samples_gen = ensemble_pred.gen_new_data(splits_val,sample_obj.get_feature_info(),samples=samples,n_new_samples=1000,conf_tresh=0.8)
+    #samples_gen = ensemble_pred.generate_new_data(n_new_samples=1000, conf_tresh=0.8) #conf_tresh is how high the features for each sample need to score
     #=================================================
     #now let's see if classification is better with extra generated data
     splits_gen = sample_obj.map_other_samples_to_same_splits(samples_gen,slices=slice(0,-1))
@@ -102,7 +102,7 @@ def classify(x_train, x_test, y_train, y_test):
     if DO_CLASSIFICATION:
         depth = 1
         uniques = np.unique(y_train)
-        while 2**depth < len(uniques):
+        while 2**(depth-1) < len(uniques):
             depth += 1
         print("Running pydl classifier")
         clasfi = create_classifier_default(

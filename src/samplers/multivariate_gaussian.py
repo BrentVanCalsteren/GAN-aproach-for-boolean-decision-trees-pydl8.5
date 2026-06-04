@@ -56,12 +56,18 @@ class MultivariateGaussianSampler(Sampler):
     def generate_new_samples_for_all_features_of_this_type(cls, indices,gen_feats_matrix, conf_thresh: float, samplers: list):
         sampler = samplers[0]
         n = gen_feats_matrix.shape[1]
-        good_samples = []
-        while len(good_samples) < n:
-            sub_samples = sampler.sorted_samples(n=n).T#returns sample dim (n_samples, n_feat_trained_on)
-            scores = sampler.score_feature(sub_samples).T
-            valid_sub_samples = sub_samples[scores >= conf_thresh]
-            if valid_sub_samples.shape[0] > 0:
-                    for sample in valid_sub_samples:
-                        good_samples.append(sample)
-        gen_feats_matrix[indices] = np.array(good_samples)[:n].T
+        good_samples = np.array([])
+        while good_samples.size == 0 or good_samples.shape[0] < n:
+            sub_samples = sampler.sorted_samples(n=n)#returns sample dim (n_samples, n_feat_trained_on)
+            scores = sampler.score_feature(sub_samples)
+            valid_samples = sub_samples[scores >= conf_thresh]
+            if good_samples.shape[0] > 0:
+                    good_samples = np.vstack((good_samples,valid_samples))
+            else:
+                good_samples = valid_samples
+        good_feats = good_samples[:n,:].T
+        j = 0
+        for i in range(gen_feats_matrix.shape[0]):
+            if indices[i]:
+                gen_feats_matrix[i] = good_feats[j]
+                j+=1

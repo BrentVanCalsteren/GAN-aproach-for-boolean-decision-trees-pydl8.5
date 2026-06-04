@@ -1,53 +1,54 @@
-from typing import Dict
-
 import numpy as np
 import re
-
-from cvxpy.atoms.affine import concatenate
-
-from usePydl.predictors.predictor import Predictor
-from data.divisive_clustering_1D import DivisiveCluster
+from src.data.split_generator import get_best_splits
 
 DESCRETE_PERCENTILE = 5
-DIFFERENT_CLUSTERS_TO_CREATE = 20
-DIFFERENT_PERCETILE_BINS_TO_CREATE = 20
 
-class Feature: #is a d array of datapoints
-    def __init__(self, raw_feature_data:np.ndarray, sampel_class):
+
+class Feature:  # represents a single column of data
+    def __init__(self, raw_feature_data: np.ndarray, sample_class):
         self.min_val = 0
         self.max_val = 0
-        self.sampel_class = sampel_class
+        self.sample_class = sample_class
         self.active_splits = {}
         self.errors = []
         self.isDiscrete = False
-        self.feature_info = [None, None]  #tells predictors which sampler to use, how many bool plits
-        feature_array = standardize_feature(raw_feature_data)
-        self.feature_array = self.scale(feature_array)
-        self.check_descrete()
+        self.feature_info = [None, None]  # tells predictors which sampler to use, how many bool splits
+
+        self.feature_array = self.scale_and_standardize(raw_feature_data)
+        self.check_discrete()
         self.dependent_feat = []
 
-    def scale(self, arr: np.ndarray):
-        self.min_val = arr.min()
-        self.max_val = arr.max()
+    def scale_and_standardize(self, raw_feature_data):
+        if raw_feature_data is None:
+            return None
+        try:
+            num_arr = np.asarray(raw_feature_data, dtype=float)
+        except (ValueError, TypeError):
+            # Convert chars to index
+            unique_values = np.unique(raw_feature_data)
+            indexes = {val: idx for idx, val in enumerate(unique_values)}
+            num_arr = np.array([indexes[val] for val in raw_feature_data])
+
+        self.min_val = num_arr.min()
+        self.max_val = num_arr.max()
 
         if self.max_val - self.min_val == 0:
-            return np.zeros(len(arr))
-        return np.array((arr - self.min_val) / (self.max_val - self.min_val))
+            return np.zeros(len(num_arr))
+        return np.array((num_arr - self.min_val) / (self.max_val - self.min_val))
 
     def reverse_scale(self, scaled_arr: np.ndarray):
         if self.max_val - self.min_val == 0:
             return np.full_like(scaled_arr, self.min_val)
         return scaled_arr * (self.max_val - self.min_val) + self.min_val
 
-
-    def check_descrete(self):
+    def check_discrete(self):
         unique_vals = np.unique(self.feature_array)
         if len(unique_vals) <= (self.feature_array.shape[0] * DESCRETE_PERCENTILE // 100):
             self.isDiscrete = True
             print('discrete feature')
-            self.feature_info[0] = 'multinomial'
+            self.feature_info[0] = unique_vals
             return
-        self.feature_info[0] = 'single_gaussian'
 
     def feature_to_samples(self):
         return self.feature_array.reshape(-1, 1)
@@ -78,215 +79,7 @@ class Feature: #is a d array of datapoints
             splits.append(result)
         return np.array(splits)
 
-    ##############################################################################
-    ############## creating boolean splits that are independent on other features#####################
-    ##############################################################################
     def create_all_independent_splits(self, n_splits):
-        current_indepent_types = ["1D_clustering to create intervals with",
-                                  "take 1 value and split on it",
-                                  "create intervals with percentile binning"]
-        all_splits = self.indep_splits_single_value()
-        splits = self.indep_splits_cluster_interval()
-        all_splits = all_splits | splits
-        splits = self.indep_splits_percentile_binning()
-        all_splits = all_splits | splits
-        self.calc_best_splits_with_gini_score(all_splits, n_splits)
-        #self.calc_best_splits_with_entropy_score(all_splits,n_splits)
-
-
-    def indep_splits_single_value(self):
-        def generate_all_possible_splits():
-            splits = {}
-            unique_vals = np.unique(self.feature_array)
-            if self.isDiscrete:
-                def split_discrete():
-                    mapped = {}
-                    for val in unique_vals:
-                        result = np.where(self.feature_array == val, 1, 0)
-                        mapped[f'even_{val}'] = result
-                    return mapped
-
-                splits = split_discrete()
-            else:
-                def splits_continue():
-                    mapped = {}
-                    for val in unique_vals:
-                        result = np.where(self.feature_array == val, 1, 0)
-                        mapped[f'equal_{val}'] = result
-                        result = np.where(self.feature_array > val, 1, 0)
-                        mapped[f'bigger_{val}'] = result
-                        result = np.where(self.feature_array < val, 1, 0)
-                        mapped[f'smaller_{val}'] = result
-                    return mapped
-
-                splits = splits_continue()
-            return splits
-
-        all_splits = generate_all_possible_splits()
-        return all_splits
-
-    def indep_splits_cluster_interval(self):
-        if self.isDiscrete: return {}
-        all_splits = {}
-        cluster = DivisiveCluster()
-        for i in range(2, DIFFERENT_CLUSTERS_TO_CREATE):
-            cluster.max_depth = i
-            cluster.fit(self.feature_array)
-            intervals = cluster.get_clusters()
-            for interval in intervals:
-                result = np.where((self.feature_array >= interval[0]) & (self.feature_array <= interval[1]), 1, 0)
-                all_splits[f'interval_{interval[0]}_{interval[1]}'] = result
-        return all_splits
-
-    def indep_splits_percentile_binning(self):
-        if self.isDiscrete: return {}
-        all_splits = {}
-        for i in range(2, DIFFERENT_PERCETILE_BINS_TO_CREATE):
-            start = 100 // i
-            percentages = []
-            j = 0
-            while start < 100:
-                percentages.append(start)
-                start = start + start
-                j += 1
-            percentages.append(100)
-            thresholds = np.percentile(self.feature_array, percentages)
-            for index, _ in enumerate(thresholds):
-                if index < len(thresholds) - 1:
-                    result = np.where(
-                        (self.feature_array >= thresholds[index]) & (self.feature_array <= thresholds[index + 1]), 1, 0)
-                    all_splits[f'interval_{thresholds[index]}_{thresholds[index + 1]}'] = result
-        return all_splits
-
-    ##############################################################################
-    ############## creating boolean splits that are dependent on other features#############
-    # ############ maybe not neccecary since a pydl-tree itself experces feature dependency with
-    # ########### what features it picks to split on (like it choses bool splits of feat 1, 3 of feat 2, ...
-    # (need to check if this is correct assumption)? ##################################
-    ############################################################################################"
-
-    def create_all_dependent_splits(self,dependent_feats):
-        #exploring dependency -> still need to implement
-        current_depent_types = []
-
-    ##############################################################################
-    ############## function for picking best splits for top split #############
-    ############################################################################################"
-    def calc_best_splits_with_gini_score(self, all_splits, n_splits):
-        all_splits = self.remove_duplicate_splits(all_splits)
-        if not all_splits:
-            return
-        keys = np.array(list(all_splits.keys()))
-        possible_splits = np.array(list(all_splits.values()))
-        feat_arr = self.feature_array
-
-        scores = []
-        for split in possible_splits:
-            left_mask = (split == 0)
-            right_mask = (split == 1)
-
-            n_left = np.sum(left_mask)
-            n_right = np.sum(right_mask)
-
-            if n_left < 2 or n_right < 2:
-                total_error = 10e6
-            else:
-                left_feat = feat_arr[left_mask]
-                right_feat = feat_arr[right_mask]
-                err_left = np.max(left_feat) - np.min(left_feat)
-                err_right = np.max(right_feat) - np.min(right_feat)
-                total_error = err_left + err_right
-
-            scores.append(total_error)
-
-        scores = np.array(scores)
-        best_indices = np.argsort(scores)
-
-        for idx in best_indices[:n_splits]:
-            if scores[idx] >= 10e6:
-                continue
-            split_key = str(keys[idx])
-            split_val = possible_splits[idx]
-            print(f'found split: {split_key} with error {scores[idx]:.4f}')
-            self.errors.append(scores[idx])
-            self.active_splits[split_key] = split_val
-        self.feature_info[1] = len(list(self.active_splits.values()))
-
-    def calc_best_splits_with_entropy_score(self, all_splits, n_splits):
-        # uses pydl tree, generate a tree on all possible splits of depth 1, maybe this does not aply when feature
-        # get's used deeper in the actually tree (since splitting the data could make the feature get better
-        # here ensemble tree could help -> recalc the samples + feature again after split first tree?
-        # the feature it choses will be the best split.
-        all_splits = self.remove_duplicate_splits(all_splits)
-        keys = np.array(list(all_splits.keys()))
-        possible_splits = np.array(list(all_splits.values()))
-        good_splits_dict = {}
-        while len(good_splits_dict) < n_splits and possible_splits.shape[0] > 0:
-            pred = Predictor(possible_splits.T, self.sampel_class.get_all_samples(), self.sampel_class.get_feature_types(),
-                             max_depth=2, min_sup=1,time=100)
-            tree = pred.dl_predictor.tree_
-            def calculate_tree_error(tr):
-                if 'left' not in tr and 'right' not in tr:
-                    return tr.get('error', 0.0)
-                left_error = calculate_tree_error(tr['left']) if 'left' in tree else 0.0
-                right_error = calculate_tree_error(tr['right']) if 'right' in tree else 0.0
-
-                return left_error + right_error
-            total_error = calculate_tree_error(tree)
-            try:
-                split_id = tree['feat']
-            except KeyError:
-                split_id = 0
-            print(f'found split: {keys[split_id]} - error: {total_error}')
-            good_splits_dict[keys[split_id]] = possible_splits[split_id]
-            self.errors.append(total_error)
-            self.active_splits[keys[split_id]] = possible_splits[split_id]
-            possible_splits = np.delete(possible_splits, split_id, axis=0)
-            keys = np.delete(keys, split_id, axis=0)
-        self.feature_info[1] = len(list(self.active_splits.values()))
-
-    def remove_duplicate_splits(self, new_pos_splits: Dict[str, list]):
-        #no need for finding the same splits (makes the model not perfom better in any way
-        # exemple where this can happen with -> bool split on >5 and bool split on interval [0, 5] is the same
-        splits_to_keep = {}
-        new_vals = list(new_pos_splits.values())
-        new_keys = list(new_pos_splits.keys())
-        found_splits = list(self.active_splits.values())
-        for i in range(len(new_keys)):
-            if check_if_sub_array(found_splits, new_vals[i]):
-                print("!Values is already present in the array!")
-            else:
-                splits_to_keep[new_keys[i]] = new_vals[i]
-        return splits_to_keep
-
-
-##################################################"
-##################"HELPERS##########################"
-####################################################
-def standardize_feature(raw_feature_data):
-    #standerazation is scaling down the feature to [0,1] values (it should not change relative gaps and shuch)
-    #perhaps is scaling to [1,2] better, need to think about it
-    if raw_feature_data is None:
-        return None
-    try:
-        num_arr = np.asarray(raw_feature_data, dtype=float)
-        print("Converted numeric strings to float.")
-        return num_arr
-    except (ValueError, TypeError):
-        num_arr = value_to_index(raw_feature_data)
-        print("Converted chars to index")
-        return num_arr
-
-def value_to_index(np_arr):
-    unique_values = np.unique(np_arr)
-    print(f"Unique vals: {unique_values}")
-    indexes = {val: idx for idx, val in enumerate(unique_values)}  # Build mapping
-    return np.array([indexes[val] for val in np_arr])
-
-def check_if_sub_array(array,sub_array):
-    for arr in array:
-        if np.equal(arr, sub_array).all():
-            return True
-    return False
-
-
+        # Delegate to fast, memory-efficient generator
+        self.active_splits = get_best_splits(self.feature_array, n_splits, self.isDiscrete)
+        self.feature_info[1] = len(self.active_splits)
