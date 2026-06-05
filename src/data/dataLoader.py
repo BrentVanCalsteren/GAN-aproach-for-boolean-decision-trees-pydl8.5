@@ -12,8 +12,8 @@ class DatasetLoader:
     MISSING_VAL_STRINGS = ['?', 'NA', 'N/A', 'null', 'NULL', 'None', '', ' ']
     RESOLUTION = (24, 24)
     LABEL_INDEX = -1
-    MAX_IM_EACH_CLASS = 50
-    CAP_NUM_FEATS = 50
+    MAX_IM_EACH_CLASS = 40
+    CAP_NUM_FEATS = 40
 
     def __init__(self, file_path):
         self.file_path = Path(file_path)

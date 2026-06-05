@@ -1,103 +1,69 @@
+import math
 from typing import List
 import numpy as np
+from scipy.spatial.distance import pdist
 from src.samplers.load_samplers import create_sampler
 #continue errors
-#/////////////////////////////////////
-#default predictors error
-def predictor_error(samples: np.ndarray, sample_types: List[str]):
-    def error(tids):
-        sub_samples = samples[list(tids)]
-        n_samples, n_features = sub_samples.shape
-        if n_features//2 >= n_samples or n_samples < 2:
-            return 10e6
-        features = sub_samples.T
-        total_error = 0.0
-        for i, feat in enumerate(features):
-            sampler = create_sampler(sample_types[i])
-            sampler.fit(feat)
-            feat_error = np.sum(sampler.get_error(feat)) / n_samples
-            total_error += feat_error
-        return  total_error/ n_features
-    return error
 
-def reduce_interval_sizes(samples: np.ndarray):
-    def error(tids):
-        sub_samples = samples[list(tids)]
-        n_samples = sub_samples.shape[0]
-        n_sub = sub_samples.shape[0]
-        if n_samples < 2:
+#dense bounding boxes
+class IntervalSizesError:
+    def __init__(self, samples: np.ndarray):
+        self.samples = samples
+        self.good_error = 0.1*samples.shape[1]
+
+    def __call__(self, tids):
+        sub_samples = self.samples[list(tids)]
+        if sub_samples.shape[0] < 2:
             return 10e6
+
         max_per_row = sub_samples.max(axis=0)
         min_per_row = sub_samples.min(axis=0)
         diff = max_per_row - min_per_row
         return np.sum(diff)
-    return error
 
 
-#other errors NOT USED RIGHT NOW
-def mse_error(samples: np.ndarray):
-    def error(tids):
-        sub_samples = samples[list(tids)]
-        if len(sub_samples) <= 1:
-            return 1
+#finds spherical clusters
+class MSEError:
+    def __init__(self, samples: np.ndarray):
+        self.samples = samples
+        self.good_error = 0.02 * samples.shape[1]
+
+    def __call__(self, tids):
+        indices = np.fromiter(tids, dtype=np.intc)
+        sub_samples = self.samples[indices]
+        if sub_samples.shape[0] < 2:
+            return 10e6
         mean = np.mean(sub_samples, axis=0)
         return np.mean(np.sum((sub_samples - mean) ** 2, axis=1))
-    return error
 
-def mae_error(samples):
-    def error(tids):
-        sub_samples = samples[list(tids)]
-        if len(sub_samples) <= 1:
-            return 1
-        pred = np.mean(sub_samples, axis=0)
-        return np.mean(np.sum(np.abs(sub_samples - pred), axis=1))
-    return error
+#Mean Absolute Error
+class MAEError:
+    def __init__(self, samples: np.ndarray):
+        self.samples = samples
+        self.good_error = 0.1 * samples.shape[1]
 
-
-def huber_error(samples, delta: float = 1.35):
-    def error(tids):
-        sub_samples = samples[list(tids)]
-        pred = np.median(sub_samples, axis=0)
-        diff = sub_samples - pred
-        abs_diff = np.abs(diff)
-        #Huber loss: 0.5 * diff² if |diff| ≤ delta, else delta * (|diff| - 0.5 * delta)
-        loss = np.where(abs_diff <= delta, 0.5 * (diff ** 2), delta * (abs_diff - 0.5 * delta))
-        return np.mean(np.sum(loss, axis=1))
-
-    return error
+    def __call__(self, tids):
+        sub_samples = self.samples[list(tids)]
+        if sub_samples.shape[0] < 2:
+            return 10e6
+        median = np.median(sub_samples, axis=0)
+        return np.mean(np.sum(np.abs(sub_samples - median), axis=1))
 
 
-#Binned/Discrete Data
-def total_entropy_error(samples):
-    def error(tids):
-        sub_samples = samples[list(tids)]
-        features = sub_samples.T
-        total_entropy = 0.0
-        for feature in features:
-            total_entropy+=entropy_error_feature(feature)
-    return error
+#Ensuring tight, strictly bounded clusters
+class DiameterError:
+    def __init__(self, samples: np.ndarray):
+        self.samples = samples
+        self.good_error = 0.10 * np.sqrt(samples.shape[1])
 
-def entropy_error_feature(feature):
-    _, counts = np.unique(feature, return_counts=True)
-    probs = counts / counts.sum()
-    return -np.sum(probs * np.log2(probs + 1e-10))
-
-def total_gini_error(samples):
-    def error(tids):
-        sub_samples = samples[list(tids)]
-        features = sub_samples.T
-        total_gini = 0.0
-        for feature in features:
-            total_gini += entropy_error_feature(feature)
-    return error
-
-def gini_error_feat(feature):
-    #count class occurrences
-    _, counts = np.unique(feature, return_counts=True)
-    probs = counts / counts.sum()
-    gini = 1.0 - np.sum(probs ** 2)
-    return gini
-
+    def __call__(self, tids):
+        indices = np.fromiter(tids, dtype=np.intc)
+        sub_samples = self.samples[indices]
+        if sub_samples.shape[0] < 2:
+            return 10e6
+        distances = pdist(sub_samples, metric='euclidean')
+        if np.max(distances) < self.good_error: return 0
+        else: return np.max(distances)
 
 ##########################
 #FAST ERROR FUN

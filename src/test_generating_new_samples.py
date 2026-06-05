@@ -46,16 +46,16 @@ DO_CLASSIFICATION = False
 
 def test_data_generation():
     sample_obj = Samples(dataset='MNIST_jpeg',data_type='image')
-    #==========================
-    #first simple test thats dataset load and generating splits work correctly
-    sample_obj.creat_splits(splits_each_feature=10)
-    splits_bool = sample_obj.get_splits_bool()
-    splits_val = sample_obj.get_splits_val()
     samples = sample_obj.get_samples()
+    #==========================
+    #create splits
+    sample_obj.creat_splits(splits_each_feature=10)
+    splits_obj = sample_obj.get_splits_obj()
+    splits = splits_obj.get_splits()
     # test image convertion
     sample_obj.convert_to_image(samples=samples,name='original_encoded')
-    same_splits = sample_obj.map_other_samples_to_same_splits(samples) #this is to check if the function works for mapping other samples features to the same boolean splits.
-    print(f'bool convertion works correctly: {np.equal(splits_bool, same_splits).all()}')
+    same_splits = splits_obj.map_samples_to_splits(samples=samples)
+    print(f'bool convertion works correctly: {np.equal(splits, same_splits).all()}')
     #=========================================
     #now let's test the quality of the splits, good splits will result into good classification with dlclassifier
     splits_x = sample_obj.get_splits_bool(slices=slice(0,-1))
@@ -78,8 +78,6 @@ def test_data_generation():
     # test on combined data
     classify(splits_combined, test_x, y_combined, test_y)
     sample_obj.convert_to_image(samples=samples_gen[:-1,:], name='generated')
-
-
 
 
 def train_test(splits, samples, test_size=0.2):

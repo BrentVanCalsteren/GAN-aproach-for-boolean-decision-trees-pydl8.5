@@ -27,11 +27,11 @@ class Node:
         return clusters
 
 
-def get_last_node_cluster_intervals(node: Node, depth: int =-1) -> List[List[Any]]:
+def get_last_node_cluster_intervals(node: Node, depth: int = -1) -> List[List[Any]]:
     if node is None:
         return []
     temp = node
-    while temp.next_node is not None or depth > 0:
+    while temp.next_node is not None and depth != 0:
         temp = temp.next_node
         depth -= 1
     return temp.get_cluster_intervals()

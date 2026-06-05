@@ -3,11 +3,9 @@ from typing import List
 import numpy as np
 from pydl85 import DL85Predictor
 import re
-
-import itertools
 from src.usePydl.leaf import get_leafs
-from src.usePydl.error_fun import predictor_error, reduce_interval_sizes, mse_error
-from src.usePydl.leaf import just_return_sample_ids
+from src.usePydl.error_fun import IntervalSizesError, MSEError, DiameterError
+from src.usePydl.leaf import ReturnIDSandPROB
 from src.samplers.load_samplers import get_sampler_class
 from src.samplers.multinomial import MultinomialSampler
 from src.samplers.uniform import UniformSampler
@@ -15,20 +13,23 @@ from src.samplers.single_gaussian import SingleGaussian1DSampler
 from src.samplers.multivariate_gaussian import MultivariateGaussianSampler
 from typing import List, Dict, Any
 
-MULTI = False
 COMBINE_FEAT = False
+
 
 class Predictor:
     n_samples = None
 
     def __init__(self, splits, samples, max_depth, min_sup, time, n_samples=None):
         print('starting dl predictor...')
-        if n_samples:
+        if n_samples is not None:
             self.n_samples = n_samples
         else:
             self.n_samples = samples.shape[0]
-        self.dl_predictor = DL85Predictor(error_function=reduce_interval_sizes(samples),
-                                          leaf_value_function=just_return_sample_ids(self.n_samples),
+
+        error = IntervalSizesError(samples)
+        self.error = error.good_error
+        self.dl_predictor = DL85Predictor(error_function=error,
+                                          leaf_value_function=ReturnIDSandPROB(self.n_samples),
                                           max_depth=max_depth,
                                           min_sup=min_sup,
                                           time_limit=time,
@@ -49,11 +50,11 @@ class Predictor:
                                                conf_tresh=conf_tresh)
 
     def gen_new_data_based_on_tree(self, tree=None, splits=None, feature_info=None, n_new_samples: int = 100,
-                                   conf_tresh: float = 0.8, old_samples = None) -> np.ndarray:
-        if not tree:
+                                   conf_tresh: float = 0.8, old_samples=None) -> np.ndarray:
+        if tree is None:
             tree = self.get_dl_tree()
         len_splits = len(splits)
-        splits_feat_map = np.zeros(len_splits)
+        splits_feat_map = np.zeros(len_splits, dtype=np.int32)
         low_bound = 0
         for i, feat_inf in enumerate(feature_info):
             upp_bound = low_bound + feat_inf[1]
@@ -126,7 +127,7 @@ def update_left_splits(value_str: str, intervals: List[List[float]]) -> List[Lis
 
 
 def update_right_splits(value_str: str, intervals: List[List[float]]) -> List[List[float]]:
-    delta = 0
+    delta = 1e-9
     vals = parse_values(value_str)
     if not vals:
         return intervals
@@ -189,65 +190,85 @@ def get_all_paths(tree):
 
 
 def gen_new_data(path_samples_dict, feature_info, n, conf, samples=None):
-    probs_each_path = np.array([intervals[0]['rel_prob'] for pathid, intervals in path_samples_dict.items()])
+    if samples is None:
+        raise ValueError("samples must be provided for generating new data")
+
+    path_ids = list(path_samples_dict.keys())
+    if len(path_ids) == 0:
+        raise ValueError("path_samples_dict is empty, cannot generate data")
+
+    probs_each_path = np.array([path_samples_dict[pid][0]['rel_prob'] for pid in path_ids])
     prob_sum = np.sum(probs_each_path)
     if prob_sum > 0:
         probs_each_path /= prob_sum
     else:
         probs_each_path = np.ones(len(probs_each_path)) / len(probs_each_path)
 
-    intervals_each_path = [intervals[1] for pathid, intervals in path_samples_dict.items()]
+    intervals_each_path = [path_samples_dict[pid][1] for pid in path_ids]
+
     disc_feat_ids = [feat_inf[0] is not None for feat_inf in feature_info]
     cont_feat_ids = [feat_inf[0] is None for feat_inf in feature_info]
-    samples_disc = samples[:,disc_feat_ids]
-    samples_cont = samples[:,cont_feat_ids]
+    samples_disc = samples[:, disc_feat_ids]
+    samples_cont = samples[:, cont_feat_ids]
 
     all_new_samples = np.array([])
-    path_indices = np.random.choice(probs_each_path.size, n, p=probs_each_path)
-    _, counts = np.unique(path_indices, return_counts=True)
-    for i, count in enumerate(counts):
+    path_indices = np.random.choice(len(path_ids), n, p=probs_each_path)
+    unique_paths, counts = np.unique(path_indices, return_counts=True)
+
+    for path_idx, count in zip(unique_paths, counts):
         gen_feat_matrix = np.zeros((len(feature_info), count))
-        intervals_each_feature = intervals_each_path[i]
-        path = path_samples_dict[i][0]
+        intervals_each_feature = intervals_each_path[path_idx]
+        path = path_samples_dict[path_ids[path_idx]][0]
         sample_ids = path.get('sample_ids', [])
+
         disc_feats = samples_disc[sample_ids].T
         cont_feats = samples_cont[sample_ids].T
-        #intervals_disc = intervals_each_feature[disc_feat_ids]
-        #intervals_cont = intervals_each_feature[cont_feat_ids]
 
-        disc_samplers = []
-        for i in range(disc_feats.shape[0]):
-            sampler = MultinomialSampler()
-            sampler.fit(disc_feats[i])
-            disc_samplers.append(sampler)
-        MultinomialSampler.generate_new_samples_for_all_features_of_this_type(
-                                                indices=disc_feat_ids,
-                                                gen_feats_matrix=gen_feat_matrix,
-                                                conf_thresh=conf,
-                                                samplers=disc_samplers,)
+        # Convert to numpy array to support boolean masking if needed
+        intervals_array = np.array(intervals_each_feature, dtype=object)
+        intervals_disc = intervals_array[disc_feat_ids]
+        intervals_cont = intervals_array[cont_feat_ids]
 
-        cont_samplers = []
-        if COMBINE_FEAT:
-            sampler = MultivariateGaussianSampler()
-            sampler.fit(cont_feats.T)
-            cont_samplers.append(sampler)
-            MultivariateGaussianSampler.generate_new_samples_for_all_features_of_this_type(
-                                                    indices=cont_feat_ids,
-                                                    gen_feats_matrix=gen_feat_matrix,
-                                                    conf_thresh=conf,
-                                                    samplers=cont_samplers,)
-        else:
-            for i in range(cont_feats.shape[0]):
-                sampler = SingleGaussian1DSampler()
-                sampler.fit(cont_feats[i])
-                cont_samplers.append(sampler)
-            SingleGaussian1DSampler.generate_new_samples_for_all_features_of_this_type(
-                indices=cont_feat_ids,
+        if disc_feats.shape[0] > 0:
+            disc_samplers = []
+            for feat_idx in range(disc_feats.shape[0]):
+                sampler = MultinomialSampler()
+                sampler.fit(disc_feats[feat_idx])
+                disc_samplers.append(sampler)
+            MultinomialSampler.generate_new_samples_for_all_features_of_this_type(
+                indices=disc_feat_ids,
                 gen_feats_matrix=gen_feat_matrix,
                 conf_thresh=conf,
-                samplers=cont_samplers, )
+                samplers=disc_samplers
+            )
+
+        if cont_feats.shape[0] > 0:
+            cont_samplers = []
+            if COMBINE_FEAT:
+                sampler = MultivariateGaussianSampler()
+                sampler.fit(cont_feats.T)
+                cont_samplers.append(sampler)
+                MultivariateGaussianSampler.generate_new_samples_for_all_features_of_this_type(
+                    indices=cont_feat_ids,
+                    gen_feats_matrix=gen_feat_matrix,
+                    conf_thresh=conf,
+                    samplers=cont_samplers
+                )
+            else:
+                for feat_idx in range(cont_feats.shape[0]):
+                    sampler = SingleGaussian1DSampler()
+                    sampler.fit(cont_feats[feat_idx])
+                    cont_samplers.append(sampler)
+                SingleGaussian1DSampler.generate_new_samples_for_all_features_of_this_type(
+                    indices=cont_feat_ids,
+                    gen_feats_matrix=gen_feat_matrix,
+                    conf_thresh=conf,
+                    samplers=cont_samplers
+                )
 
         if all_new_samples.size > 0:
-            all_new_samples = np.vstack((all_new_samples,gen_feat_matrix.T))
-        else: all_new_samples = gen_feat_matrix.T
+            all_new_samples = np.vstack((all_new_samples, gen_feat_matrix.T))
+        else:
+            all_new_samples = gen_feat_matrix.T
+
     return np.clip(all_new_samples, 0, 1)
