@@ -1,5 +1,5 @@
 import re
-from typing import Dict
+from typing import Dict, List
 
 import numpy as np
 from data.feature import Feature
@@ -10,7 +10,7 @@ from src.data.divisive_clustering_1D import DivisiveCluster
 class Splits:
     splits = None
     values = None
-    feature_index_array = None
+    feature_index_array:List = None
     def __init__(self, max_splits_each_feature, sample_obj):
         self.max_splits_each_feature = max_splits_each_feature
         self.splits = []
@@ -63,12 +63,12 @@ class Splits:
 
     def generate_best_splits(self, feature):
         if feature.isDiscrete:
-            new_splits = self.gen_discrete_splits(feature)
+            new_splits = self.generate_discrete_splits(feature)
         else:
             new_splits = self.generate_continues_splits(feature)
         return remove_duplicate_splits(new_splits)
 
-    def gen_discrete_splits(self, feature):
+    def generate_discrete_splits(self, feature):
         new_splits = {}
         uniques, counts = np.unique(feature.feature_array, return_counts=True)
         top_uniques = uniques[np.argsort(-counts)]

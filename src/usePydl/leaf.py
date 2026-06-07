@@ -19,16 +19,4 @@ def empty_val():
     return value
 #-------------------------------------------------
 
-#helpers for looking at leaf data
-def get_leafs(tree):
-    leaves = []
-    def recurse(node):
-        if "value" in node:
-            leaves.append(node)
-        else:
-            recurse(node["left"])
-            recurse(node["right"])
-    recurse(tree)
-    return leaves
-
 

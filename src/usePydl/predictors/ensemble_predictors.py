@@ -1,9 +1,5 @@
-import time
 from concurrent.futures import ProcessPoolExecutor, as_completed
-import copy
 import numpy as np
-
-from src.usePydl.leaf import get_leafs
 from src.usePydl.predictors.predictor import Predictor
 
 MIN_NUM_SAMPLES = 4
@@ -20,7 +16,7 @@ def generate_pred_with_new_process(sub_splits, sub_samples, depth, n_samples, gl
         n_samples=n_samples,
         global_feat_map=global_feat_map,
     )
-    leafs = get_leafs(pred.get_dl_tree())
+    leafs = pred.tree.get_leafs()
     return pred, leafs, sub_samples.shape[0]
 
 
@@ -43,7 +39,7 @@ class EnsemblePredictor(Predictor):
         print(f"Starting Ensemble Predictor depth:{self.depth}, samples:{samples.shape}")
 
         super().__init__(
-            splits=splits,
+            splits_obj=splits,
             samples=samples,
             max_depth=2,
             min_sup=1,
@@ -53,82 +49,17 @@ class EnsemblePredictor(Predictor):
 
         print(f"Finished Predictor depth:{self.depth}, samples:{samples.shape}")
 
-    def gen_new_data(self, splits=None, feature_info=None, samples=None, n_new_samples: int = 100,
-                     conf_tresh: float = 0.8) -> np.ndarray:
-        tree = self.get_complete_tree()
-        return self.gen_new_data_based_on_tree(
-            tree=tree,
-            splits=splits,
-            feature_info=feature_info,
-            n_new_samples=n_new_samples,
-            conf_tresh=conf_tresh,
-            old_samples=samples
-        )
-
-    def get_complete_tree(self):
-        local_tree = copy.deepcopy(self.get_dl_tree())
-
-        def remap_features(node):
-            if not isinstance(node, dict):
-                return
-            if "feat" in node:
-                node["feat"] = int(self.global_feat_map[node["feat"]])
-            if "left" in node:
-                remap_features(node["left"])
-            if "right" in node:
-                remap_features(node["right"])
-
-        remap_features(local_tree)
-
-        if not self.child_predictors_dic:
-            return local_tree
-
-        for leaf_signature, pred in self.child_predictors_dic.items():
-            pred_tree = pred.get_complete_tree()
-            local_tree = merge_subtrees_into_parent(
-                local_tree,
-                copy.deepcopy(pred_tree),
-                leaf_signature,
-            )
-
-        return local_tree
-
 
 def leaf_signature_from_leaf(leaf):
     sample_ids = tuple(sorted(leaf.get("value", {}).get("sample_ids", [])))
     return sample_ids
 
 
-def merge_subtrees_into_parent(tree, subtree, target_signature):
-    replaced = False
-
-    def merge(node):
-        nonlocal replaced
-        if replaced:
-            return node
-
-        if "value" in node:
-            sig = tuple(sorted(node["value"].get("sample_ids", [])))
-            if sig == target_signature:
-                replaced = True
-                return subtree
-            return node
-
-        if "left" in node:
-            node["left"] = merge(node["left"])
-        if "right" in node:
-            node["right"] = merge(node["right"])
-
-        return node
-
-    return merge(tree)
-
-
 def should_expand(leaf_error, predictor_error):
     return (leaf_error - predictor_error) > EPSILON
 
 
-def build_ensemble_tree_iteratively(splits, samples):
+def build_ensembles_iteratively(splits, samples):
     root_predictor = EnsemblePredictor(
         splits=splits,
         samples=samples,
@@ -136,7 +67,7 @@ def build_ensemble_tree_iteratively(splits, samples):
         depth=0,
     )
     current_level_tasks = []
-    initial_leafs = get_leafs(root_predictor.get_dl_tree())
+    initial_leafs = root_predictor.tree.get_leafs()
 
     for leaf in initial_leafs:
         sample_ids = leaf["value"].get("sample_ids", [])
@@ -165,9 +96,6 @@ def build_ensemble_tree_iteratively(splits, samples):
                     continue
 
                 filtered_sub_splits = sub_splits[:, mask]
-
-                # FIX: Since `splits` here is the absolute GLOBAL splits array, 
-                # evaluating the mask directly yields the absolute global indices!
                 global_indices = np.where(mask)[0]
 
                 future = executor.submit(
