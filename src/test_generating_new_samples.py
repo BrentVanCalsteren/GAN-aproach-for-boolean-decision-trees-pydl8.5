@@ -1,6 +1,6 @@
 from pandas.core import sample
 
-from src.usePydl.predictors.ensemble_predictors import EnsemblePredictor, build_ensemble_tree_iteratively
+from src.usePydl.predictors.ensemble_predictors import EnsemblePredictor, build_ensembles_iteratively
 from src.data.sampels import Samples
 import numpy as np
 from pydl85 import DL85Classifier
@@ -42,7 +42,7 @@ from sklearn.metrics import accuracy_score, classification_report
 # will be calculated based on the erros from splits at depth 3 under him ect.
 # (different depths will generate different clusters and does result into different errors)
 
-DO_CLASSIFICATION = False
+DO_CLASSIFICATION = True
 
 def test_data_generation():
     sample_obj = Samples(dataset='MNIST_jpeg',data_type='image')
@@ -58,22 +58,25 @@ def test_data_generation():
     print(f'bool convertion works correctly: {np.equal(splits, same_splits).all()}')
     #=========================================
     #now let's test the quality of the splits, good splits will result into good classification with dlclassifier
-    splits_x = sample_obj.get_splits_bool(slices=slice(0,-1))
-    samples_y = sample_obj.get_samples(slices=slice(-1,None,None),convert_to_int=True) #convert back to int, dl classifier needs int labels
+    splits_x = splits_obj.get_splits(-1)
+    samples_y = sample_obj.get_samples(slices=slice(-1,None,None),convert_to_int=True).flatten() #convert back to int, dl classifier needs int labels
     train_x,test_x,train_y,test_y = train_test(splits=splits_x, samples=samples_y,test_size=0.2)
     classify(train_x,test_x,train_y,test_y)
     #=================================================
     #now let's generate new data
-    ensemble_pred = build_ensemble_tree_iteratively(splits_bool, samples)
-    samples_gen = ensemble_pred.gen_new_data(splits_val,sample_obj.get_feature_info(),samples=samples,n_new_samples=1000,conf_tresh=0.8)
-    #samples_gen = ensemble_pred.generate_new_data(n_new_samples=1000, conf_tresh=0.8) #conf_tresh is how high the features for each sample need to score
+
+    ensemble_pred = build_ensembles_iteratively(splits, samples)
+    samples_gen = ensemble_pred.gen_new_data(split_obj=splits_obj,n=150, conf=0.8)
+    #pred = Predictor(samples=samples,splits=splits,max_depth=3,min_sup=1,time=100,n_samples=samples.shape[0])
+    #samples_gen = pred.gen_new_data(split_obj=splits_obj, n=150, conf=0.8)
     #=================================================
     #now let's see if classification is better with extra generated data
-    splits_gen = sample_obj.map_other_samples_to_same_splits(samples_gen,slices=slice(0,-1))
+    splits_gen_x = splits_obj.map_samples_to_splits(samples_gen,-1)
+
     y_gen = value_to_index(samples_gen[:, -1])
     #test on generated data alone
-    classify(splits_gen, test_x, y_gen, test_y)
-    splits_combined = np.vstack((train_x, splits_gen))
+    classify(splits_gen_x, test_x, y_gen, test_y)
+    splits_combined = np.vstack((train_x, splits_gen_x))
     y_combined = np.hstack((train_y, y_gen))
     # test on combined data
     classify(splits_combined, test_x, y_combined, test_y)

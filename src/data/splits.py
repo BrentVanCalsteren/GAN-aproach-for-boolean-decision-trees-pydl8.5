@@ -2,6 +2,8 @@ import re
 from typing import Dict, List
 
 import numpy as np
+
+from data import feature
 from data.feature import Feature
 from src.data.divisive_clustering_1D import DivisiveCluster
 
@@ -17,8 +19,14 @@ class Splits:
         self.values = []
         self.sample_obj = sample_obj
 
-    def get_splits(self):
-        return np.array(self.splits).T
+    def get_splits(self, cut=None):
+        if cut is not None and cut == -1:
+            m = np.max(self.feature_index_array)
+            mask = (self.feature_index_array != m)
+            splits = np.array(self.splits)[mask]
+        else:
+            splits = np.array(self.splits)
+        return splits.T
 
 
     def create_splits_from_feature(self, feature: Feature):
@@ -31,13 +39,8 @@ class Splits:
             self.feature_index_array += [max+1]*n_new_splits
 
     def save_best_splits(self, new_splits):
-        existing_hashes = {np.asarray(arr).tobytes() for arr in self.splits}
         valid_candidates = []
         for val, split in new_splits.items():
-            split_arr = np.asarray(split)
-            split_hash = split_arr.tobytes()
-            if split_hash in existing_hashes:
-                continue
             score = self.score_split(split)
             valid_candidates.append((score, val, split))
 
@@ -117,9 +120,9 @@ class Splits:
                 new_splits[f"{c_type}_{t_val}"] = mask.astype(int)
         return new_splits
 
-    def map_samples_to_splits(self, samples):
+    def map_samples_to_splits(self, samples, cut=None):
         features = samples.T
-        new_splits = np.zeros_like(self.get_splits().T)
+        new_splits = np.zeros((self.get_splits().shape[1], samples.shape[0]))
         for i, val_str in enumerate(self.values):
             feature_id = self.feature_index_array[i]
             matches = re.findall(r"[-+]?\d*\.\d+|\d+", val_str)
@@ -134,6 +137,10 @@ class Splits:
                 new_splits[i] = np.where((features[feature_id] >= vals[0]) & (features[feature_id] <= vals[1]), 1, 0)
             else:
                 raise ValueError('invalid key')
+        if cut is not None and cut == -1:
+            m = np.max(self.feature_index_array)
+            mask = (self.feature_index_array != m)
+            new_splits = new_splits[mask]
         return new_splits.T
 
 

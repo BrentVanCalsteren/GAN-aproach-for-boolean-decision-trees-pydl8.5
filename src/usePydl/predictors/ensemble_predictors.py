@@ -1,4 +1,4 @@
-from concurrent.futures import ProcessPoolExecutor, as_completed
+from concurrent.futures import ProcessPoolExecutor, as_completed, FIRST_COMPLETED, wait
 import numpy as np
 from src.usePydl.predictors.predictor import Predictor
 
@@ -8,139 +8,98 @@ MAX_TIME = 20
 EPSILON = 1e-9
 
 
-def generate_pred_with_new_process(sub_splits, sub_samples, depth, n_samples, global_feat_map):
+def generate_pred(sub_splits, sub_samples, n_samples) -> EnsemblePredictor:
     pred = EnsemblePredictor(
         splits=sub_splits,
         samples=sub_samples,
-        depth=depth,
         n_samples=n_samples,
-        global_feat_map=global_feat_map,
     )
-    leafs = pred.tree.get_leafs()
-    return pred, leafs, sub_samples.shape[0]
+    return pred
 
 
 class EnsemblePredictor(Predictor):
-    def __init__(self, splits, samples, depth=0, n_samples=None, global_feat_map=None):
-        self.depth = depth
+    def __init__(self,samples, splits=None, n_samples=None):
+        print(f"Starting Ensemble Predictor, samples:{samples.shape}")
 
-        if n_samples is not None:
-            self.n_samples = n_samples
-        else:
-            self.n_samples = samples.shape[0]
+        super().__init__(splits=splits, samples=samples, max_depth=2, min_sup=1, time=MAX_TIME, n_samples=n_samples)
 
-        if global_feat_map is None:
-            self.global_feat_map = np.arange(splits.shape[1])
-        else:
-            self.global_feat_map = np.asarray(global_feat_map)
-
-        self.child_predictors_dic = {}
-
-        print(f"Starting Ensemble Predictor depth:{self.depth}, samples:{samples.shape}")
-
-        super().__init__(
-            splits_obj=splits,
-            samples=samples,
-            max_depth=2,
-            min_sup=1,
-            time=MAX_TIME,
-            n_samples=self.n_samples,
-        )
-
-        print(f"Finished Predictor depth:{self.depth}, samples:{samples.shape}")
-
-
-def leaf_signature_from_leaf(leaf):
-    sample_ids = tuple(sorted(leaf.get("value", {}).get("sample_ids", [])))
-    return sample_ids
-
-
-def should_expand(leaf_error, predictor_error):
-    return (leaf_error - predictor_error) > EPSILON
+        print(f"Finished Predictor, samples:{samples.shape}")
 
 
 def build_ensembles_iteratively(splits, samples):
-    root_predictor = EnsemblePredictor(
-        splits=splits,
-        samples=samples,
-        n_samples=samples.shape[0],
-        depth=0,
-    )
-    current_level_tasks = []
-    initial_leafs = root_predictor.tree.get_leafs()
+    root_predictor = EnsemblePredictor(samples=samples, splits=splits, n_samples=samples.shape[0])
 
-    for leaf in initial_leafs:
+    def get_map(_ids):
+        return {j: jd for j, jd in enumerate(_ids)}
+
+    def should_expand(leaf_error, predictor_error):
+        return (leaf_error - predictor_error) > EPSILON
+
+    future_to_leaf = {}
+    executor = ProcessPoolExecutor(max_workers=6)
+
+    leafs = root_predictor.tree.get_leafs()
+    for leaf in leafs:
         sample_ids = leaf["value"].get("sample_ids", [])
         leaf_error = leaf.get("error", 0)
+        leaf_signature = tuple(sorted(sample_ids))
 
-        if (len(sample_ids) >= MIN_NUM_SAMPLES and len(sample_ids) != samples.shape[0]):
+        if len(sample_ids) >= MIN_NUM_SAMPLES and len(sample_ids) != samples.shape[0]:
             if should_expand(leaf_error, root_predictor.error):
-                current_level_tasks.append((root_predictor, leaf_signature_from_leaf(leaf), sample_ids))
+                sample_map = get_map(sample_ids)
+                sub_samples = samples[sample_ids]
 
-    with ProcessPoolExecutor(max_workers=6) as executor:
-        while current_level_tasks:
-            future_to_meta = {}
-
-            for parent, leaf_signature, s_ids in current_level_tasks:
-                if parent.depth >= MAX_DEPTH:
-                    continue
-
-                sub_samples = samples[s_ids, :]
-                sub_splits = splits[s_ids, :]
-
-                # Homogeneous split pruning
+                sub_splits = splits[sample_ids]
                 col_sums = sub_splits.sum(axis=0)
-                mask = (col_sums > 0) & (col_sums < len(s_ids))
-
+                mask = (col_sums > 0) & (col_sums < len(sample_ids))
                 if not np.any(mask):
                     continue
+                sub_splits = sub_splits[:, mask]
+                global_splits = np.where(mask)[0]
+                split_map = get_map(global_splits)
 
-                filtered_sub_splits = sub_splits[:, mask]
-                global_indices = np.where(mask)[0]
+                future = executor.submit(generate_pred, sub_splits, sub_samples, samples.shape[0])
+                future_to_leaf[future] = (leaf_signature, split_map, sample_map, 1)
 
-                future = executor.submit(
-                    generate_pred_with_new_process,
-                    filtered_sub_splits,
-                    sub_samples,
-                    parent.depth + 1,
-                    len(s_ids),
-                    global_indices,
-                )
+    while future_to_leaf:
+        done, not_done = wait(future_to_leaf.keys(), return_when=FIRST_COMPLETED)
 
-                future_to_meta[future] = (parent, leaf_signature, s_ids)
+        for future in done:
+            leaf_signature, split_map, sample_map, depth = future_to_leaf.pop(future)
+            try:
+                new_predictor = future.result()
+            except Exception as exc:
+                print(f"EnsemblePredictor child generated an exception: {exc}")
+                continue
 
-            next_level_tasks = []
+            new_tree = new_predictor.tree
+            new_tree.remap_tree(split_map, sample_map)
+            root_predictor.tree.extend_tree(new_tree.tree, leaf_signature)
 
-            for future in as_completed(future_to_meta):
-                parent, leaf_signature, s_ids = future_to_meta[future]
-                try:
-                    child_predictor, child_leafs, parent_subset_size = future.result()
-                    parent.child_predictors_dic[leaf_signature] = child_predictor
+            if depth < MAX_DEPTH:
+                new_leafs = new_tree.get_leafs()
+                for leaf in new_leafs:
+                    child_sample_ids = leaf["value"].get("sample_ids", [])
+                    child_leaf_error = leaf.get("error", 0)
+                    child_signature = tuple(sorted(child_sample_ids))
 
-                    for child_leaf in child_leafs:
-                        local_ids = child_leaf["value"].get("sample_ids", [])
-                        child_error = child_leaf.get("error", 0)
+                    if len(child_sample_ids) >= MIN_NUM_SAMPLES:
+                        if should_expand(child_leaf_error, root_predictor.error):
+                            child_sample_map = get_map(child_sample_ids)
+                            child_sub_samples = samples[child_sample_ids]
 
-                        global_sample_ids = [s_ids[i] for i in local_ids]
+                            child_sub_splits = splits[child_sample_ids]
+                            col_sums = child_sub_splits.sum(axis=0)
+                            mask = (col_sums > 0) & (col_sums < len(child_sample_ids))
+                            if not np.any(mask):
+                                continue
+                            child_sub_splits = child_sub_splits[:, mask]
+                            child_global_splits = np.where(mask)[0]
+                            child_split_map = get_map(child_global_splits)
 
-                        if len(global_sample_ids) < MIN_NUM_SAMPLES:
-                            continue
-                        if len(global_sample_ids) == parent_subset_size:
-                            continue
-                        if not should_expand(child_error, child_predictor.error):
-                            continue
+                            new_future = executor.submit(generate_pred, child_sub_splits, child_sub_samples,
+                                                         samples.shape[0])
+                            future_to_leaf[new_future] = (child_signature, child_split_map, child_sample_map, depth + 1)
 
-                        next_level_tasks.append(
-                            (
-                                child_predictor,
-                                tuple(sorted(global_sample_ids)),
-                                global_sample_ids,
-                            )
-                        )
-
-                except Exception as e:
-                    print(f"Error expanding leaf: {e}")
-
-            current_level_tasks = next_level_tasks
-
+    executor.shutdown()
     return root_predictor

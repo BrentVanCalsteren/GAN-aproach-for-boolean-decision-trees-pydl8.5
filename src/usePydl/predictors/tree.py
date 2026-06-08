@@ -10,26 +10,34 @@ from src.data.splits import Splits
 
 class Tree:
 
-    def __init__(self, tree, split_obj):
+    def __init__(self, tree):
         self.tree : Dict = tree
-        self.split_obj : Splits= split_obj
+        self.feature_index_array = None
 
-    def extend_tree(self, subtree, leaf_id):
-        current_leaf_id = 0
-        def merge(node):
-            nonlocal current_leaf_id
+    def get_depth(self):
+        def recurse(node,depth):
             if "value" in node:
-                if leaf_id == current_leaf_id:
+                return depth
+            else:
+                left_depth = recurse(node["left"], depth+1)
+                right_depth = recurse(node["right"], depth+1)
+                return max(left_depth, right_depth)
+        return recurse(self.tree, 0)
+
+    def extend_tree(self, subtree, leaf_signature):
+        def merge(node):
+            if "value" in node:
+                sample_ids = node["value"].get("sample_ids", [])
+                node_signature = tuple(sorted(sample_ids))
+                if node_signature == leaf_signature:
+                    print('MERGED!')
                     return subtree
-                current_leaf_id += 1
                 return node
 
-            if "left" in node:
-                node["left"] = merge(node["left"])
-            if "right" in node:
-                node["right"] = merge(node["right"])
+            if "left" in node: node["left"] = merge(node["left"])
+            if "right" in node: node["right"] = merge(node["right"])
             return node
-        return merge(self.tree)
+        self.tree = merge(self.tree)
 
     def get_leafs(self):
         leaves = []
@@ -46,55 +54,68 @@ class Tree:
         paths = self.get_all_paths()
         interval_path_dic = {}
         for i, path in enumerate(paths):
-            interval_path_dic[i] = self.calc_intervals_of_path(path['path'])
+            interval_path_dic[i] = self.calc_intervals_of_path(path[1]['path'])
         return interval_path_dic
+
+
+    def remap_tree(self, split_map, sample_id_map):
+        def recurse(node):
+            if "value" in node:
+                sample_ids = node['value']['sample_ids']
+                node['value']['sample_ids'] = [sample_id_map[i] for i in sample_ids]
+            else:
+                node['feat'] = split_map[node['feat']]
+                recurse(node["left"])
+                recurse(node["right"])
+        recurse(self.tree)
 
     def get_all_paths(self):
         all_paths = []
+
         def path_finder(node, current_path):
+            # Base case: Leaf node
             if 'value' in node:
                 all_paths.append(('END',{
-                    'path': current_path, # is a dic feat_id : (splits, directions)
+                    'path': current_path,
                     'error': node.get('error', 0),
                     'sample_ids': node['value']['sample_ids'],
-                    'rel_prob': node['value']['rel_prob']
-                }))
+                    'rel_prob': node['value']['rel_prob']}))
                 return
 
             split = int(node['feat'])
-            feature_id = self.split_obj.feature_index_array[split]
-            if current_path[feature_id] is not None:
-                splits, directions = current_path[feature_id]
-            else:
-                splits, directions = [], []
+            feature_id = int(self.feature_index_array[split])
+
             if 'left' in node:
-                splits.append(split)
-                directions.append('L')
-                current_path[feature_id] = (splits,directions)
-                path_finder(node['left'], current_path)
-                splits.pop()
-                directions.pop()
+                left_path = {k: (v[0].copy(), v[1].copy()) for k, v in current_path.items()}
+                if feature_id not in left_path:
+                    left_path[feature_id] = ([], [])
+                left_path[feature_id][0].append(split)
+                left_path[feature_id][1].append('L')
+                path_finder(node['left'], left_path)
+
             if 'right' in node:
-                splits.append(split)
-                directions.append('R')
-                current_path[feature_id] = (splits,directions)
-                path_finder(node['right'], current_path)
-                splits.pop()
-                directions.pop()
+                right_path = {k: (v[0].copy(), v[1].copy()) for k, v in current_path.items()}
+                if feature_id not in right_path:
+                    right_path[feature_id] = ([], [])
+                right_path[feature_id][0].append(split)
+                right_path[feature_id][1].append('R')
+                path_finder(node['right'], right_path)
 
         path_finder(self.tree, {})
         if len(all_paths) != len(self.get_leafs()):
-            print('LEN PATHS AND TREES SHOULD BE TE SAME')
+            print('LEN PATHS AND TREES SHOULD BE THE SAME')
         return all_paths
 
     def calc_intervals_of_path(self, path):
         feat_interval_dic = {}
-        for feature_id in range(np.max(self.split_obj.feature_index_array)):
+        for feature_id in range(np.max(self.feature_index_array)+1):
             start_interval =  [[0.0,1.0]]
-            feat_interval_dic[feature_id] = expand_interval(path[feature_id], start_interval)
+            feat_interval_dic[feature_id] = expand_interval(path.get(feature_id), start_interval)
         return feat_interval_dic
 
 def expand_interval(path, start_interval):
+    if path is None:
+        return start_interval
     intervals = start_interval
     for i in range(len(path[0])):
         if path[1][i] == 'R':

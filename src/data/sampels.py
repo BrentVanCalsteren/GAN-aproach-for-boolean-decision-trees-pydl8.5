@@ -14,15 +14,14 @@ class Samples:
         self.splits = None
         self.samples = np.array([])
         self.encoder = None
-        if dataset:
+        if dataset is not None:
             self.load_new_dataset(dataset, data_type)
 
     def load_new_dataset(self, dataset='iris', data_type='tabular'):
         loaded_data = loader(dataset_name=dataset, data_type=data_type)
         samples = loaded_data.complete_X
         np.random.shuffle(samples)
-        self.samples = samples
-        self.feature_list = [Feature(feat, self) for feat in self.samples.T]
+        self.feature_list = [Feature(feat, self) for feat in samples.T]
         self.set_scaled_samples()
         self.encoder = loaded_data.encoder
 
@@ -37,10 +36,11 @@ class Samples:
         if slices is None:
             sliced = self.samples
         else:
-            sliced = self.samples[:,slices]
+            sliced = self.samples[:, slices]
         if convert_to_int:
+            sliced = sliced.copy()
             for i in range(sliced.shape[1]):
-                sliced[:,i] = value_to_index(sliced[:,i])
+                sliced[:, i] = value_to_index(sliced[:, i])
         return sliced
 
     def creat_splits(self, splits_each_feature=None):

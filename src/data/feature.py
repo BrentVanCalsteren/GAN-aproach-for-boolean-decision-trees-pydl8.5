@@ -2,10 +2,10 @@ import numpy as np
 
 DESCRETE_PERCENTILE = 5
 class Feature:  # represents a single column of data
-    def __init__(self, raw_feature_data: np.ndarray, sample_class):
+    def __init__(self, raw_feature_data: np.ndarray, sample_obj):
         self.min_val = 0
         self.max_val = 0
-        self.sample_class = sample_class
+        self.sample_class = sample_obj
         self.active_splits = {}
         self.errors = []
         self.isDiscrete = False

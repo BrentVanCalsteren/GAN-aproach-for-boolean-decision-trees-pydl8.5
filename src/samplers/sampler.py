@@ -1,3 +1,5 @@
+from typing import Dict
+
 import numpy as np
 
 class Sampler:
@@ -31,21 +33,44 @@ class Sampler:
         return samplers
 
     @classmethod
-    def generate_new_samples_for_all_features_of_this_type(cls, indices,gen_feats_matrix, conf_thresh: float, samplers: list):
+    def generate_new_samples_for_all_features_of_this_type(cls, indices, gen_feats_matrix, conf_thresh: float,
+                                                           samplers: list, intervals_list: Dict = None):
         bundeld_feats = []
         if gen_feats_matrix.ndim == 1:
             raise ValueError('if you want to use this method you gen_matrix needs to be 2d')
         n = gen_feats_matrix.shape[1]
-        for sampler in samplers:
+        for i, sampler in enumerate(samplers):
+            intervals = intervals_list[i] if intervals_list else None
             single_feat = np.array([])
-            while len(single_feat) < n:
+            attempts = 0
+            while len(single_feat) < n and attempts < 100:
                 gen_feat = sampler.sorted_samples(n=n)
                 scores = sampler.score_feature(gen_feat)
-                gen_feat_good = gen_feat[scores >= conf_thresh]
+                valid_mask = scores >= conf_thresh
+
+                if intervals:
+                    feat_valid = np.zeros_like(gen_feat, dtype=bool)
+                    for inter in intervals:
+                        feat_valid |= (gen_feat >= inter[0]) & (gen_feat <= inter[1])
+                    valid_mask &= feat_valid
+
+                gen_feat_good = gen_feat[valid_mask]
                 if gen_feat_good.size > 0:
                     if single_feat.size > 0:
                         single_feat = np.concatenate((single_feat, gen_feat_good))
                     else:
                         single_feat = gen_feat_good
+                attempts += 1
+
+            if len(single_feat) < n:
+                needed = n - len(single_feat)
+                fallback = sampler.sample(needed)
+                if intervals:
+                    fallback = np.clip(fallback, intervals[0][0], intervals[0][1])
+                if single_feat.size > 0:
+                    single_feat = np.concatenate((single_feat, fallback))
+                else:
+                    single_feat = fallback
+
             bundeld_feats.append(single_feat[:n])
         gen_feats_matrix[indices] = np.array(bundeld_feats)
