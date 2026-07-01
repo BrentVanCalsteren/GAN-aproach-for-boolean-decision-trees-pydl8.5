@@ -1,5 +1,6 @@
 import re
 from typing import Dict, List
+from src.usePydl.error_fun import IntervalSizesError
 
 import numpy as np
 
@@ -30,21 +31,22 @@ class Splits:
 
 
     def create_splits_from_feature(self, feature: Feature):
-        new_splits = self.generate_best_splits(feature)
-        n_new_splits = self.save_best_splits(new_splits)
+        new_splits = self._generate_best_splits(feature)
+        n_new_splits = self._save_best_splits(new_splits)
         if self.feature_index_array is None:
             self.feature_index_array = [0]*n_new_splits
         else:
             max = np.max(self.feature_index_array)
             self.feature_index_array += [max+1]*n_new_splits
 
-    def save_best_splits(self, new_splits):
+    def _save_best_splits(self, new_splits):
         valid_candidates = []
-        for val, split in new_splits.items():
-            score = self.score_split(split)
-            valid_candidates.append((score, val, split))
-
-        valid_candidates.sort(key=lambda x: x[0])
+        splits = np.array(list(new_splits.values()))
+        scores = self.score_splits(splits)
+        vals = list(new_splits.keys())
+        splits = np.array(list(new_splits.values()))
+        valid_candidates = list(zip(scores, vals, splits))
+        valid_candidates.sort(key=lambda x: x[0], reverse=True)
         best_candidates = valid_candidates[:self.max_splits_each_feature]
         new_best_splits = [c[2] for c in best_candidates]
         new_best_vals = [c[1] for c in best_candidates]
@@ -52,26 +54,33 @@ class Splits:
         self.values.extend(new_best_vals)
         return len(new_best_splits)
 
-    def score_split(self, split):
+    def score_splits(self, splits):
+        vals = np.unique(splits)
+        is_0 = (splits == vals[0])
+
         def gini():
-            _, counts = np.unique(split,return_counts=True)
-            prob = counts/np.sum(counts)
-            if prob.size == 1:
-                return 1
-            return np.abs(prob[0]-prob[1])
+            prob_0 = np.mean(is_0, axis=1)
+            prob_1 = 1.0 - prob_0
+            return 1 - np.abs(prob_0 - prob_1)
+
         gini_score = gini()
-        #TODO add score dltree gives it
 
-        return gini_score # + dl_score
+        def interval_score():
+            error_calc = IntervalSizesError(samples=self.sample_obj.get_samples())
+            interval_scores = np.array([error_calc(np.where(row_mask)[0]) + error_calc(np.where(~row_mask)[0])for row_mask in is_0])
+            return 1- interval_scores/np.max(interval_scores)
 
-    def generate_best_splits(self, feature):
+        inter_scores = interval_score()
+        return gini_score + inter_scores
+
+    def _generate_best_splits(self, feature):
         if feature.isDiscrete:
-            new_splits = self.generate_discrete_splits(feature)
+            new_splits = self._generate_discrete_splits(feature)
         else:
-            new_splits = self.generate_continues_splits(feature)
+            new_splits = self._generate_continues_splits(feature)
         return remove_duplicate_splits(new_splits)
 
-    def generate_discrete_splits(self, feature):
+    def _generate_discrete_splits(self, feature):
         new_splits = {}
         uniques, counts = np.unique(feature.feature_array, return_counts=True)
         top_uniques = uniques[np.argsort(-counts)]
@@ -79,7 +88,7 @@ class Splits:
             new_splits[f"even_{val}"] = (feature.feature_array == val).astype(int)
         return new_splits
 
-    def generate_continues_splits(self, feature):
+    def _generate_continues_splits(self, feature):
         new_splits = {}
         feature_array =  feature.feature_array
         #binning

@@ -45,15 +45,15 @@ from sklearn.metrics import accuracy_score, classification_report
 DO_CLASSIFICATION = True
 
 def test_data_generation():
-    sample_obj = Samples(dataset='MNIST_jpeg',data_type='image')
+    sample_obj = Samples(dataset='iris',data_type='tabular')
     samples = sample_obj.get_samples()
+    sample_obj.save_output(samples=samples,output_name='original_encoded')
     #==========================
     #create splits
     sample_obj.creat_splits(splits_each_feature=10)
     splits_obj = sample_obj.get_splits_obj()
     splits = splits_obj.get_splits()
     # test image convertion
-    sample_obj.convert_to_image(samples=samples,name='original_encoded')
     same_splits = splits_obj.map_samples_to_splits(samples=samples)
     print(f'bool convertion works correctly: {np.equal(splits, same_splits).all()}')
     #=========================================
@@ -66,7 +66,7 @@ def test_data_generation():
     #now let's generate new data
 
     ensemble_pred = build_ensembles_iteratively(splits, samples)
-    samples_gen = ensemble_pred.gen_new_data(split_obj=splits_obj,n=150, conf=0.8)
+    samples_gen = ensemble_pred.gen_new_data(split_obj=splits_obj,n=200, conf=0.9)
     #pred = Predictor(samples=samples,splits=splits,max_depth=3,min_sup=1,time=100,n_samples=samples.shape[0])
     #samples_gen = pred.gen_new_data(split_obj=splits_obj, n=150, conf=0.8)
     #=================================================
@@ -80,7 +80,7 @@ def test_data_generation():
     y_combined = np.hstack((train_y, y_gen))
     # test on combined data
     classify(splits_combined, test_x, y_combined, test_y)
-    sample_obj.convert_to_image(samples=samples_gen[:-1,:], name='generated')
+    sample_obj.save_output(samples=samples_gen[:-1,:], output_name='generated')
 
 
 def train_test(splits, samples, test_size=0.2):

@@ -16,20 +16,13 @@ class Feature:  # represents a single column of data
         self.dependent_feat = []
 
     def scale_and_standardize(self, raw_feature_data):
-        if raw_feature_data is None:
-            return None
-        try:
-            num_arr = np.asarray(raw_feature_data, dtype=float)
-        except (ValueError, TypeError):
-            unique_values = np.unique(raw_feature_data)
-            indexes = {val: idx for idx, val in enumerate(unique_values)}
-            num_arr = np.array([indexes[val] for val in raw_feature_data])
-        self.min_val = num_arr.min()
-        self.max_val = num_arr.max()
-
-        if self.max_val - self.min_val == 0:
-            return np.zeros(len(num_arr))
+        if raw_feature_data is None:    return None
+        num_arr = make_num(raw_feature_data)
+        self.min_val = np.min(num_arr)
+        self.max_val = np.max(num_arr)
+        if self.max_val - self.min_val == 0:    return np.zeros(len(num_arr))
         return np.array((num_arr - self.min_val) / (self.max_val - self.min_val))
+
 
     def reverse_scale(self, scaled_arr: np.ndarray):
         if self.max_val - self.min_val == 0:
@@ -43,3 +36,13 @@ class Feature:  # represents a single column of data
             print('discrete feature')
             self.feature_info[0] = unique_vals
             return
+
+def make_num(raw_feature_data):
+    try:
+        num_arr = np.asarray(raw_feature_data, dtype=float)
+    except (ValueError, TypeError):
+        unique_values = np.unique(raw_feature_data)
+        indexes = {val: idx for idx, val in enumerate(unique_values)}
+        num_arr = np.array([indexes[val] for val in raw_feature_data])
+        #maybe store the original strings? but would never need them (always want it to be numbers)
+    return num_arr

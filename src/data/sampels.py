@@ -1,36 +1,101 @@
 from typing import List, Optional
 import numpy as np
-from src.data.dataLoader import load_dataloader_by_name as loader, array_to_image, save_image_to_folder
+from sklearn.neighbors import NearestNeighbors
+
+from src.data.dataLoader import load_dataloader_by_name
 from src.data.feature import Feature
 from src.data.splits import Splits
+from src.data.encoders.encoder_PCA import PCAEncoder
+from src.data.encoders.encoder_NN import NNencoder
 import src.data.feature as f
 
+ROTATE_DIM = True
+USE_NN = False
+REDUCE_FEAT = False
+ADD_labels = True
 
 class Samples:
-    def __init__(self, dataset: Optional[str] = 'iris', data_type='tabular', set_all_discrete=False):
+    def __init__(self, dataset: str = 'iris', data_type='tabular', set_all_discrete=False):
         if set_all_discrete:
             f.DESCRETE_PERCENTILE = 100
         self.feature_list: List[Feature] = []
         self.splits = None
         self.samples = np.array([])
-        self.encoder = None
-        if dataset is not None:
-            self.load_new_dataset(dataset, data_type)
+        self.labels = np.array([])
+        self.loader = None
+        self.pca = None
+        self.nn = None
+        self.load_new_dataset(dataset, data_type)
+        self.pre_process_samples()
 
     def load_new_dataset(self, dataset='iris', data_type='tabular'):
-        loaded_data = loader(dataset_name=dataset, data_type=data_type)
-        samples = loaded_data.complete_X
-        np.random.shuffle(samples)
-        self.feature_list = [Feature(feat, self) for feat in samples.T]
-        self.set_scaled_samples()
-        self.encoder = loaded_data.encoder
+        loader = load_dataloader_by_name(dataset_name=dataset, data_type=data_type)
+        self.loader = loader
+        samples, labels = loader.get_samples()
+        indices = np.arange(len(samples))
+        np.random.shuffle(indices)
+        samples = samples[indices]
+        labels = labels[indices]
+        self.samples = samples
+        self.labels = labels
 
-    def set_scaled_samples(self):
+#################### Preprocess samples #######################################
+
+    def pre_process_samples(self):
+        if ROTATE_DIM: self.rotate_feature_dim()
+        if REDUCE_FEAT: self.reduce_num_feats()
+        if ADD_labels: self.samples =  np.hstack((self.samples, self.labels))
+        self.scale_samples()
+
+    def reverse_process_samples(self, samples):
+        if samples is None:
+            samples = self.samples
+        labels = self.labels
+        samples = self.reverse_scale(samples)
+        if ADD_labels:
+            labels = samples[:, -1]
+            samples = samples[:, :-1]
+        if REDUCE_FEAT: samples = self.restore_all_feat(samples)
+        if ROTATE_DIM: samples = self.restore_rotation(samples)
+        return samples, labels
+
+    def rotate_feature_dim(self):
+        self.pca = PCAEncoder(output_dim=min(self.samples.shape))
+        self.samples = self.pca.transform(self.samples)
+
+    def restore_rotation(self, samples):
+        return self.pca.inverse_transform(samples)
+
+    def reduce_num_feats(self,num_feats=50):
+        if USE_NN:
+            self.nn = NNencoder(output_dim=num_feats)
+            self.nn.create_new_nn_module(samples=self.samples)
+            self.nn.train_module(min_error=0.00005)
+        else:
+            self.nn = PCAEncoder(output_dim=num_feats)
+        self.samples = self.nn.transform(self.samples)
+
+    def restore_all_feat(self, samples):
+        return self.nn.inverse_transform(samples)
+
+    def scale_samples(self):
+        self.feature_list = [Feature(feat, self) for feat in self.samples.T]
         if self.feature_list:
             scaled = np.array([feat.feature_array for feat in self.feature_list]).T
             self.samples = scaled
         else:
             print("can't set scaled samples, no feature object loaded")
+
+    def reverse_scale(self, s):
+        if not self.feature_list:
+            return s
+        fifa = s.T
+        reverse = []
+        for i, feat in enumerate(self.feature_list):
+            reverse.append(feat.reverse_scale(fifa[i]))
+        return np.array(reverse).T
+
+##################### END ###############################
 
     def get_samples(self, slices: Optional[slice] = None, convert_to_int=False):
         if slices is None:
@@ -56,37 +121,12 @@ class Samples:
     def get_feature_info(self):
         return [feat.feature_info for feat in self.feature_list]
 
-    def reverse_scale(self, s):
-        if not self.feature_list:
-            return s
-        fifa = s.T
-        reverse = []
-        for i, feat in enumerate(self.feature_list):
-            reverse.append(feat.reverse_scale(fifa[i]))
-        return np.array(reverse).T
+    def save_output(self,samples, output_name):
+        samples, labels = self.reverse_process_samples(samples)
+        self.loader.save_output_to_folder(samples,labels, filename=output_name)
 
-    def decode_samples(self, samples_to_decode):
-        if self.encoder:
-            decoded = self.encoder.inverse_transform(samples_to_decode)
-            return decoded
-        print("can't decode, no encoder")
-        return samples_to_decode
 
-    def convert_to_image(self, samples, name='default.png'):
-        reverse_scaled = self.reverse_scale(samples)
-        labels = reverse_scaled[:, -1]
-        value_5s = reverse_scaled[labels == 5.0][:20]
-        if value_5s.size == 0:
-            return
-        decoded_samples = self.decode_samples(value_5s[:, :-1])
-        print(f'label of image is {5}')
-        for i, sample in enumerate(decoded_samples):
-            image = array_to_image(sample)
-            if not '.' in name:
-                fixed_name = name + f'_{i}.png'
-            else:
-                fixed_name = name
-            save_image_to_folder(image, "output", fixed_name)
+
 
 
 #################

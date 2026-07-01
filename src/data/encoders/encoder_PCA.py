@@ -2,9 +2,9 @@ import numpy as np
 from sklearn.decomposition import PCA
 
 class PCAEncoder:
-    def __init__(self, output_dim=None,target_variance=0.98):
+    def __init__(self, output_dim=None, information_kept=0.9):
         if output_dim is None:
-            self.pca = PCA(n_components=target_variance)
+            self.pca = PCA(n_components=information_kept)
         else:
             self.pca = PCA(n_components=output_dim)
 
