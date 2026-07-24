@@ -3,9 +3,6 @@ from typing import Dict, List
 from src.usePydl.error_fun import IntervalSizesError
 
 import numpy as np
-
-from data import feature
-from data.feature import Feature
 from src.data.divisive_clustering_1D import DivisiveCluster
 
 
@@ -30,8 +27,8 @@ class Splits:
         return splits.T
 
 
-    def create_splits_from_feature(self, feature: Feature):
-        new_splits = self._generate_best_splits(feature)
+    def create_splits_from_feature(self, feature_array: np.ndarray, f_type):
+        new_splits = self._generate_best_splits(feature_array, f_type)
         n_new_splits = self._save_best_splits(new_splits)
         if self.feature_index_array is None:
             self.feature_index_array = [0]*n_new_splits
@@ -73,8 +70,8 @@ class Splits:
         inter_scores = interval_score()
         return gini_score + inter_scores
 
-    def _generate_best_splits(self, feature):
-        if feature.isDiscrete:
+    def _generate_best_splits(self, feature, f_type):
+        if f_type == 'discrete':
             new_splits = self._generate_discrete_splits(feature)
         else:
             new_splits = self._generate_continues_splits(feature)
@@ -82,30 +79,29 @@ class Splits:
 
     def _generate_discrete_splits(self, feature):
         new_splits = {}
-        uniques, counts = np.unique(feature.feature_array, return_counts=True)
+        uniques, counts = np.unique(feature, return_counts=True)
         top_uniques = uniques[np.argsort(-counts)]
         for val in top_uniques:
-            new_splits[f"even_{val}"] = (feature.feature_array == val).astype(int)
+            new_splits[f"even_{val}"] = (feature == val).astype(int)
         return new_splits
 
     def _generate_continues_splits(self, feature):
         new_splits = {}
-        feature_array =  feature.feature_array
         #binning
         thresholds = None
-        for i in range(feature_array.shape[0]):
+        for i in range(feature.shape[0]):
             percentiles = np.linspace(5, 95, min(self.max_splits_each_feature * 2, 20))
             if thresholds is None:
-                thresholds = np.unique(np.percentile(feature_array, percentiles))
+                thresholds = np.unique(np.percentile(feature, percentiles))
             else:
-                thresholds = np.unique(np.concatenate((thresholds, np.percentile(feature_array, percentiles))))
+                thresholds = np.unique(np.concatenate((thresholds, np.percentile(feature, percentiles))))
 
         #clustering
         cluster_thresholds = []
         cluster = DivisiveCluster()
         cluster.max_depth = self.max_splits_each_feature
-        cluster.fit(feature_array)
-        for i in range(feature_array.shape[0]):
+        cluster.fit(feature)
+        for i in range(feature.shape[0]):
             intervals = cluster.get_clusters_at_depth(i)
             for interval in intervals:
                 cluster_thresholds.extend([interval[0], interval[1]])
@@ -114,13 +110,13 @@ class Splits:
         candidates = []
         thresholds = np.unique(np.concatenate((thresholds, cluster_thresholds)))
         for t in thresholds:
-            candidates.append(('bigger_eq', t, (feature_array >= t)))
-            candidates.append(('smaller_eq', t, (feature_array <= t)))
+            candidates.append(('bigger_eq', t, (feature >= t)))
+            candidates.append(('smaller_eq', t, (feature <= t)))
 
         for i in range(len(thresholds) - 1):
             for j in range(i + 1, min(i + 5, len(thresholds))):
                 t1, t2 = thresholds[i], thresholds[j]
-                candidates.append(('interval', (t1, t2), (feature_array >= t1) & (feature_array <= t2)))
+                candidates.append(('interval', (t1, t2), (feature >= t1) & (feature <= t2)))
 
         for c_type, t_val, mask in candidates:
             if c_type == 'interval':

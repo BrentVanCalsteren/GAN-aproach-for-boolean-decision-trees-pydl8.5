@@ -18,15 +18,16 @@ COMBINE_FEAT = False
 class Predictor:
     n_samples = None
 
-    def __init__(self, splits, samples, max_depth, min_sup, time, n_samples=None):
+    def __init__(self, sample_obj, sub_sample_id, max_depth, min_sup, time):
         print('starting dl predictor...')
-        if n_samples is not None:
-            self.n_samples = n_samples
+        self.sample_obj = sample_obj
+        if sub_sample_id is not None:
+            samples, splits = self.sample_obj.sub_samples[sub_sample_id]
         else:
-            self.n_samples = samples.shape[0]
-
+            samples = self.sample_obj.samples
+            splits = self.sample_obj.splits_obj.get_splits()
         error = IntervalSizesError(samples)
-        leaf_val = ReturnIDSandPROB(self.n_samples)
+        leaf_val = ReturnIDSandPROB(self.sample_obj.samples.shape[0])
         self.error = error.good_error
         self.dl_predictor = DL85Predictor(error_function=error,
                                           leaf_value_function=leaf_val,
@@ -36,7 +37,7 @@ class Predictor:
                                           max_error=np.inf)
 
         self.dl_predictor.fit(splits)
-        self.tree = Tree(tree=self.dl_predictor.tree_)
+        self.tree = Tree(tree=self.dl_predictor.tree_, feature_index_array=self.sample_obj.splits_obj.feature_index_array)
 
 
     def predict(self, samples_bin):
@@ -45,18 +46,14 @@ class Predictor:
     def get_tree_dict(self):
         return self.tree.tree
 
-    def gen_new_data(self, split_obj=None, n: int = 100, conf: float = 0.8) -> np.ndarray:
-        if split_obj is None:
-            raise ValueError('split_obj is None')
-        self.tree.feature_index_array = split_obj.feature_index_array
-
+    def gen_new_data(self, n: int = 100, conf: float = 0.8) -> np.ndarray:
         leafs = self.tree.get_leafs()
         if len(leafs) == 0:
             raise ValueError("Tree has no leaves.")
 
         interval_path_dic = self.tree.get_intervals_each_path()
-        samples = split_obj.sample_obj.samples
-        feat_info = split_obj.sample_obj.get_feature_info()
+        samples = self.sample_obj.samples
+        feat_info = self.sample_obj.get_feature_info()
 
         probs_each_path = np.array([leaf['value']['rel_prob'] for leaf in leafs])
         prob_sum = np.sum(probs_each_path)

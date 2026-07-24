@@ -1,6 +1,14 @@
 from pathlib import Path
-from src.data.image_data import ImageData
-from src.data.tabular_data import TabularData
+from data.data_loader.image_data import ImageData
+from data.data_loader.tabular_data import TabularData
+
+
+class DataObj:
+    def __init__(self):
+        pass
+
+
+
 
 def load_dataloader_by_name(dataset_name: str, main_dir: str = 'GAN-aproach-for-boolean-decision-trees-pydl8.5',
                             data_subdir: str = 'datasets', data_type='tabular'):

@@ -2,17 +2,13 @@ import re
 from typing import Dict, List
 
 import numpy as np
-from scipy._lib.pyprima.cobyla import initialize
-
-from src.data.splits import Splits
-
 
 
 class Tree:
 
-    def __init__(self, tree):
+    def __init__(self, tree, feature_index_array):
         self.tree : Dict = tree
-        self.feature_index_array = None
+        self.feature_index_array = feature_index_array
 
     def get_depth(self):
         def recurse(node,depth):

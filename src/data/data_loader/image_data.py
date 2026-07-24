@@ -17,6 +17,7 @@ class ImageData:
         self.n_channels = 1
         self.samples = None
 
+
     def load_image_data(self):
         if not self.file_path.exists():
             raise FileNotFoundError(f"Directory {self.file_path} does not exist.")

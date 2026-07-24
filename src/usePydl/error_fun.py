@@ -1,8 +1,5 @@
-import math
-from typing import List
 import numpy as np
 from scipy.spatial.distance import pdist
-from src.samplers.load_samplers import create_sampler
 #continue errors
 
 #dense bounding boxes

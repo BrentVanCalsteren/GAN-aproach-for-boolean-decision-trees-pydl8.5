@@ -1,12 +1,9 @@
-from pandas.core import sample
-
-from src.usePydl.predictors.ensemble_predictors import EnsemblePredictor, build_ensembles_iteratively
-from src.data.sampels import Samples
+from src.usePydl.predictors.ensemble_predictors import build_ensembles_iteratively
+from data.data_obj.sampels import Samples
 import numpy as np
 from pydl85 import DL85Classifier
 from sklearn.model_selection import train_test_split
 from src.usePydl.classifier.ensemble_classifier import EnsembleClassifier
-from src.usePydl.predictors.predictor import Predictor
 import random
 from sklearn.metrics import accuracy_score, classification_report
 
@@ -45,12 +42,12 @@ from sklearn.metrics import accuracy_score, classification_report
 DO_CLASSIFICATION = True
 
 def test_data_generation():
-    sample_obj = Samples(dataset='iris',data_type='tabular')
+    sample_obj = Samples(dataset='MNIST_jpeg',data_type='image')
     samples = sample_obj.get_samples()
     sample_obj.save_output(samples=samples,output_name='original_encoded')
     #==========================
     #create splits
-    sample_obj.creat_splits(splits_each_feature=10)
+    sample_obj.creat_splits(max_num_splits_each_feature=10)
     splits_obj = sample_obj.get_splits_obj()
     splits = splits_obj.get_splits()
     # test image convertion
@@ -66,7 +63,7 @@ def test_data_generation():
     #now let's generate new data
 
     ensemble_pred = build_ensembles_iteratively(splits, samples)
-    samples_gen = ensemble_pred.gen_new_data(split_obj=splits_obj,n=200, conf=0.9)
+    samples_gen = ensemble_pred.gen_new_data(sample_obj=sample_obj,n=200, conf=0.9)
     #pred = Predictor(samples=samples,splits=splits,max_depth=3,min_sup=1,time=100,n_samples=samples.shape[0])
     #samples_gen = pred.gen_new_data(split_obj=splits_obj, n=150, conf=0.8)
     #=================================================
