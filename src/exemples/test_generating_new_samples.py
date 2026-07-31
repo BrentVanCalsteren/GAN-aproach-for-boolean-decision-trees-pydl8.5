@@ -1,4 +1,5 @@
-from src.usePydl.predictors.ensemble_predictors import build_ensembles_iteratively
+from evalData.statistic_sim import feature_corr_diff
+from src.usePydl.predictors.local_greedy_predictors import build_tree_iteratively
 from data.data_obj.sampels import Samples
 import numpy as np
 from pydl85 import DL85Classifier
@@ -42,33 +43,32 @@ from sklearn.metrics import accuracy_score, classification_report
 DO_CLASSIFICATION = True
 
 def test_data_generation():
-    sample_obj = Samples(dataset='MNIST_jpeg',data_type='image')
+    sample_obj = Samples(dataset='iris',data_type='tabular')
     samples = sample_obj.get_samples()
     sample_obj.save_output(samples=samples,output_name='original_encoded')
     #==========================
     #create splits
-    sample_obj.creat_splits(max_num_splits_each_feature=10)
-    splits_obj = sample_obj.get_splits_obj()
-    splits = splits_obj.get_splits()
+    feature_data = sample_obj.current_feat_hist
+    feature_data.creat_splits(max_num_splits_each_feature=10)
     # test image convertion
-    same_splits = splits_obj.map_samples_to_splits(samples=samples)
+    splits = feature_data.get_splits()
+    same_splits = feature_data.splits_obj.map_samples_to_splits(samples=samples)
     print(f'bool convertion works correctly: {np.equal(splits, same_splits).all()}')
     #=========================================
     #now let's test the quality of the splits, good splits will result into good classification with dlclassifier
-    splits_x = splits_obj.get_splits(-1)
-    samples_y = sample_obj.get_samples(slices=slice(-1,None,None),convert_to_int=True).flatten() #convert back to int, dl classifier needs int labels
-    train_x,test_x,train_y,test_y = train_test(splits=splits_x, samples=samples_y,test_size=0.2)
+    labels = sample_obj.labels.flatten()
+    train_x,test_x,train_y,test_y = train_test(splits=splits, samples=labels,test_size=0.2)
     classify(train_x,test_x,train_y,test_y)
     #=================================================
     #now let's generate new data
 
-    ensemble_pred = build_ensembles_iteratively(splits, samples)
-    samples_gen = ensemble_pred.gen_new_data(sample_obj=sample_obj,n=200, conf=0.9)
+    ensemble_pred = build_tree_iteratively(feature_data)
+    samples_gen = ensemble_pred.gen_new_data_based_tree_structure(n=200, conf=0.9)
     #pred = Predictor(samples=samples,splits=splits,max_depth=3,min_sup=1,time=100,n_samples=samples.shape[0])
     #samples_gen = pred.gen_new_data(split_obj=splits_obj, n=150, conf=0.8)
     #=================================================
     #now let's see if classification is better with extra generated data
-    splits_gen_x = splits_obj.map_samples_to_splits(samples_gen,-1)
+    splits_gen_x = feature_data.splits_obj.map_samples_to_splits(samples_gen,-1)
 
     y_gen = value_to_index(samples_gen[:, -1])
     #test on generated data alone

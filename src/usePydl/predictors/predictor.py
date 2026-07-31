@@ -1,14 +1,12 @@
-from typing import List
-
 import numpy as np
 from pydl85 import DL85Predictor
+
 from src.usePydl.error_fun import IntervalSizesError, MSEError, DiameterError
 from src.usePydl.leaf import ReturnIDSandPROB
 from src.samplers.multinomial import MultinomialSampler
 from src.samplers.uniform import UniformSampler
 from src.samplers.single_gaussian import SingleGaussian1DSampler
 from src.samplers.multivariate_gaussian import MultivariateGaussianSampler
-from typing import List
 
 from usePydl.predictors.tree import Tree
 
@@ -18,16 +16,10 @@ COMBINE_FEAT = False
 class Predictor:
     n_samples = None
 
-    def __init__(self, sample_obj, sub_sample_id, max_depth, min_sup, time):
+    def __init__(self, feature_history, max_depth, min_sup, time):
         print('starting dl predictor...')
-        self.sample_obj = sample_obj
-        if sub_sample_id is not None:
-            samples, splits = self.sample_obj.sub_samples[sub_sample_id]
-        else:
-            samples = self.sample_obj.samples
-            splits = self.sample_obj.splits_obj.get_splits()
-        error = IntervalSizesError(samples)
-        leaf_val = ReturnIDSandPROB(self.sample_obj.samples.shape[0])
+        error = IntervalSizesError(feature_history.samples)
+        leaf_val = ReturnIDSandPROB(feature_history.get_first_hist_depth_0().samples.shape[0])
         self.error = error.good_error
         self.dl_predictor = DL85Predictor(error_function=error,
                                           leaf_value_function=leaf_val,
@@ -36,24 +28,31 @@ class Predictor:
                                           time_limit=time,
                                           max_error=np.inf)
 
-        self.dl_predictor.fit(splits)
-        self.tree = Tree(tree=self.dl_predictor.tree_, feature_index_array=self.sample_obj.splits_obj.feature_index_array)
+        self.dl_predictor.fit(feature_history.get_splits())
+        tree = Tree(tree=self.dl_predictor.tree_)
+        feature_history.tree = tree
+        self.tree = tree
+        self.feature_history = feature_history
 
 
     def predict(self, samples_bin):
         return self.dl_predictor.predict(samples_bin)
 
     def get_tree_dict(self):
-        return self.tree.tree
+        complete = self.feature_history.get_complete_tree()
+        return complete.tree if complete is not None else self.tree.tree
 
-    def gen_new_data(self, n: int = 100, conf: float = 0.8) -> np.ndarray:
-        leafs = self.tree.get_leafs()
+    def gen_new_data_based_tree_structure(self, n: int = 100, conf: float = 0.8) -> np.ndarray:
+        complete_tree = self.feature_history.get_complete_tree()
+        leafs = complete_tree.get_leafs()
         if len(leafs) == 0:
             raise ValueError("Tree has no leaves.")
 
-        interval_path_dic = self.tree.get_intervals_each_path()
-        samples = self.sample_obj.samples
-        feat_info = self.sample_obj.get_feature_info()
+        feat_info_list = self.feature_history.feature_info_list
+        interval_path_dic = complete_tree.get_intervals_each_path(feat_len=len(feat_info_list))
+
+        cont_disc_feats = [info.featureType for info in feat_info_list]
+
 
         probs_each_path = np.array([leaf['value']['rel_prob'] for leaf in leafs])
         prob_sum = np.sum(probs_each_path)
@@ -62,10 +61,8 @@ class Predictor:
         else:
             probs_each_path = np.ones(len(probs_each_path)) / len(probs_each_path)
 
-        disc_feat_ids = [feat_inf[0] is not None for feat_inf in feat_info]
-        cont_feat_ids = [feat_inf[0] is None for feat_inf in feat_info]
-        samples_disc = samples[:, disc_feat_ids]
-        samples_cont = samples[:, cont_feat_ids]
+        disc_feat_ids = [t == 'discrete' for t in cont_disc_feats]
+        cont_feat_ids = [t == 'continuous' for t in cont_disc_feats]
 
         all_new_samples = np.array([])
         indx_list_n = np.random.choice(len(leafs), n, p=probs_each_path)
@@ -73,32 +70,31 @@ class Predictor:
         sample_count = 0
 
         for idx, count in zip(indx, counts):
-            gen_feat_matrix = np.zeros((len(feat_info), count))
+            gen_feat_matrix = np.zeros((len(feat_info_list), count))
             intervals_each_feature = interval_path_dic[idx]
-            leaf = leafs[idx]
-            sample_ids = leaf['value'].get('sample_ids', [])
-
-            if len(sample_ids) == 0:
-                print(f"Warning: Selected leaf {idx} has 0 samples. Skipping.")
-                continue
-
             sample_count += count
-            disc_feats = samples_disc[sample_ids].T
-            cont_feats = samples_cont[sample_ids].T
 
             intervals_disc = []
             intervals_cont = []
-            for i in range(len(feat_info)):
+            for i in range(len(feat_info_list)):
                 if disc_feat_ids[i]:
                     intervals_disc.append(intervals_each_feature[i])
                 else:
                     intervals_cont.append(intervals_each_feature[i])
 
-            if disc_feats.shape[0] > 0:
+
+            if len(intervals_disc) > 0:
                 disc_samplers = []
-                for feat_idx in range(disc_feats.shape[0]):
+                for intervals_feat in intervals_disc:
                     sampler = MultinomialSampler()
-                    sampler.fit(disc_feats[feat_idx])
+                    intervals = intervals_feat.get_intersection_intervals()
+                    points = []
+                    for interval in intervals:
+                        p = interval.get_boundry_points()
+                        if len(p) > 1:
+                            print('does not match the dicrete signiture for intervals')
+                        else: points += p
+                    sampler.fit(np.array(points))
                     disc_samplers.append(sampler)
                 MultinomialSampler.generate_new_samples_for_all_features_of_this_type(
                     indices=disc_feat_ids,
@@ -108,32 +104,20 @@ class Predictor:
                     intervals_list=intervals_disc
                 )
 
-            if cont_feats.shape[0] > 0:
-                cont_samplers = []
-                if COMBINE_FEAT:
+            if len(intervals_cont) > 0:
+                samplers_for_feat = []
+                for intervals_feat in intervals_cont:
+                    interval = intervals_feat.get_complete_domain()
                     sampler = MultivariateGaussianSampler()
-                    sampler.fit(cont_feats.T)
-                    cont_samplers.append(sampler)
-                    MultivariateGaussianSampler.generate_new_samples_for_all_features_of_this_type(
-                        indices=cont_feat_ids,
-                        gen_feats_matrix=gen_feat_matrix,
-                        conf_thresh=conf,
-                        samplers=cont_samplers,
-                        intervals_list=intervals_cont
-                    )
-                else:
-                    for feat_idx in range(cont_feats.shape[0]):
-                        sampler = SingleGaussian1DSampler()
-                        sampler.fit(cont_feats[feat_idx])
-                        cont_samplers.append(sampler)
-                    SingleGaussian1DSampler.generate_new_samples_for_all_features_of_this_type(
-                        indices=cont_feat_ids,
-                        gen_feats_matrix=gen_feat_matrix,
-                        conf_thresh=conf,
-                        samplers=cont_samplers,
-                        intervals_list=intervals_cont
-                    )
-
+                    sampler.fit(np.array(interval))
+                    samplers_for_feat.append(sampler)
+                SingleGaussian1DSampler.generate_new_samples_for_all_features_of_this_type(
+                    indices=cont_feat_ids,
+                    gen_feats_matrix=gen_feat_matrix,
+                    conf_thresh=conf,
+                    samplers=samplers_for_feat,
+                    intervals_list=intervals_cont
+                )
             if all_new_samples.size > 0:
                 all_new_samples = np.vstack((all_new_samples, gen_feat_matrix.T))
             else:

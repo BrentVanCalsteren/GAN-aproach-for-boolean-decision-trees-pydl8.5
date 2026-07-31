@@ -1,4 +1,4 @@
-from typing import Dict
+from typing import Dict, List
 
 import numpy as np
 from scipy.stats import multivariate_normal
@@ -55,7 +55,7 @@ class MultivariateGaussianSampler(Sampler):
         return [sampler]
 
     @classmethod
-    def generate_new_samples_for_all_features_of_this_type(cls, indices, gen_feats_matrix, conf_thresh: float, samplers: list, intervals_list: Dict = None):
+    def generate_new_samples_for_all_features_of_this_type(cls, indices, gen_feats_matrix, conf_thresh: float, samplers: list, intervals_list: List = None):
         sampler = samplers[0]
         n = gen_feats_matrix.shape[1]
         good_samples = np.array([])

@@ -1,4 +1,4 @@
-from typing import Dict
+from typing import Dict, List
 
 import numpy as np
 
@@ -34,7 +34,7 @@ class Sampler:
 
     @classmethod
     def generate_new_samples_for_all_features_of_this_type(cls, indices, gen_feats_matrix, conf_thresh: float,
-                                                           samplers: list, intervals_list: Dict = None):
+                                                           samplers: list, intervals_list: List = None):
         bundeld_feats = []
         if gen_feats_matrix.ndim == 1:
             raise ValueError('if you want to use this method you gen_matrix needs to be 2d')

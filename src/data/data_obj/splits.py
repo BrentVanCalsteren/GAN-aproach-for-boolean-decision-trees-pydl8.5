@@ -11,11 +11,11 @@ class Splits:
     splits = None
     values = None
     feature_index_array:List = None
-    def __init__(self, max_splits_each_feature, sample_obj):
+    def __init__(self, max_splits_each_feature, samples):
         self.max_splits_each_feature = max_splits_each_feature
         self.splits = []
         self.values = []
-        self.sample_obj = sample_obj
+        self.samples = samples
 
     def get_splits(self, cut=None):
         if cut is not None and cut == -1:
@@ -28,6 +28,7 @@ class Splits:
 
 
     def create_splits_from_feature(self, feature_array: np.ndarray, f_type):
+        print('generating splits for feature')
         new_splits = self._generate_best_splits(feature_array, f_type)
         n_new_splits = self._save_best_splits(new_splits)
         if self.feature_index_array is None:
@@ -37,7 +38,6 @@ class Splits:
             self.feature_index_array += [max+1]*n_new_splits
 
     def _save_best_splits(self, new_splits):
-        valid_candidates = []
         splits = np.array(list(new_splits.values()))
         scores = self.score_splits(splits)
         vals = list(new_splits.keys())
@@ -63,7 +63,7 @@ class Splits:
         gini_score = gini()
 
         def interval_score():
-            error_calc = IntervalSizesError(samples=self.sample_obj.get_samples())
+            error_calc = IntervalSizesError(samples=self.samples)
             interval_scores = np.array([error_calc(np.where(row_mask)[0]) + error_calc(np.where(~row_mask)[0])for row_mask in is_0])
             return 1- interval_scores/np.max(interval_scores)
 

@@ -15,7 +15,6 @@ class Node:
         self.depth = depth
 
     def get_cluster_intervals(self):
-        print('getting clusters')
         clusters = []
         pref_index = 0
         #print(f'split index: {self.split_index}')

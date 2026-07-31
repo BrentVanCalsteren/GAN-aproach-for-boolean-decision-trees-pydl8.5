@@ -4,7 +4,7 @@ from scipy.spatial.distance import pdist
 
 #dense bounding boxes
 class IntervalSizesError:
-    def __init__(self, samples: np.ndarray):
+    def __init__(self, samples):
         self.samples = samples
         self.good_error = 0.1*samples.shape[1]
 

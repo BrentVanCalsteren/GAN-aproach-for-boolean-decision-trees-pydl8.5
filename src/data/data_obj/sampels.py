@@ -9,11 +9,11 @@ from data.data_obj.feature_history import FeatureHistory
 
 ROTATE_DIM = True
 USE_NN = False
-REDUCE_FEAT = True
+REDUCE_FEAT = False
 COMBINE_FEAT_LABELS = True
 
 class Samples:
-    def __init__(self, dataset: str = 'iris', data_type='tabular', set_all_discrete=False):
+    def __init__(self, dataset: str = 'iris', data_type='tabular'):
         self.current_feat_hist: FeatureHistory = None
         self.past_feat_hist: FeatureHistory = None
         self.splits_obj = None
@@ -29,6 +29,7 @@ class Samples:
     def load_new_dataset(self, dataset='iris', data_type='tabular'):
         loader = load_dataloader_by_name(dataset_name=dataset, data_type=data_type)
         self.loader = loader
+        loader.loading_chunk()
         samples, labels = loader.get_samples() #sampels and labels should already be procecced into numeric values + samples is a 2d np array
         indices = np.arange(len(samples))
         np.random.shuffle(indices)
@@ -107,25 +108,9 @@ class Samples:
                 sliced[:, i] = value_to_index(sliced[:, i])
         return sliced
 
-    def creat_splits(self, max_num_splits_each_feature=None):
-        if max_num_splits_each_feature is None:
-            max_num_splits_each_feature = 5
-        self.splits_obj = Splits(max_splits_each_feature=max_num_splits_each_feature, sample_obj=self)
-        for feature_info in self.current_feat_hist.feature_info_list:
-            self.splits_obj.create_splits_from_feature(feature_info.feature_array,feature_info.featureType)
-
-    def get_splits_obj(self):
-        return self.splits_obj
-
-    def get_feature_info(self):
-        return [feat.featureType for feat in self.feature_list]
-
     def save_output(self,samples, output_name):
         samples, labels = self.reverse_process_samples(samples)
         self.loader.save_output_to_folder(samples,labels, filename=output_name)
-
-
-
 
 
 #################
