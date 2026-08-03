@@ -7,6 +7,7 @@ from src.samplers.multinomial import MultinomialSampler
 from src.samplers.uniform import UniformSampler
 from src.samplers.single_gaussian import SingleGaussian1DSampler
 from src.samplers.multivariate_gaussian import MultivariateGaussianSampler
+import CONFIG
 
 from usePydl.predictors.tree import Tree
 
@@ -49,9 +50,12 @@ class Predictor:
             raise ValueError("Tree has no leaves.")
 
         feat_info_list = self.feature_history.feature_info_list
-        interval_path_dic = complete_tree.get_intervals_each_path(chunkInfo=self.feature_history.chunkInfo)
+        interval_path_dic = complete_tree.get_intervals_each_path(feat_history=self.feature_history)
 
-        cont_disc_feats = [info.featureType for info in feat_info_list]
+        if CONFIG.ROTATE_DIM or CONFIG.REDUCE_FEAT:
+            cont_disc_feats = ['continuous']*len(feat_info_list)
+        else:
+            cont_disc_feats = [info.featureType for info in feat_info_list]
 
 
         probs_each_path = np.array([leaf['value']['rel_prob'] for leaf in leafs])
@@ -87,14 +91,8 @@ class Predictor:
                 disc_samplers = []
                 for intervals_feat in intervals_disc:
                     sampler = MultinomialSampler()
-                    intervals = intervals_feat.get_intersection_intervals()
-                    points = []
-                    for interval in intervals:
-                        p = interval.get_boundry_points()
-                        if len(p) > 1:
-                            print('does not match the dicrete signiture for intervals')
-                        else: points += p
-                    sampler.fit(np.array(points))
+                    interval = intervals_feat.get_complete_domain()
+                    sampler.fit(np.array(interval))
                     disc_samplers.append(sampler)
                 MultinomialSampler.generate_new_samples_for_all_features_of_this_type(
                     indices=disc_feat_ids,

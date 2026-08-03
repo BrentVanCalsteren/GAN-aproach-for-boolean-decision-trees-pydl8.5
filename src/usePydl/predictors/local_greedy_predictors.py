@@ -1,10 +1,9 @@
-from concurrent.futures import ProcessPoolExecutor, as_completed, FIRST_COMPLETED, wait
+from concurrent.futures import ProcessPoolExecutor, FIRST_COMPLETED, wait
 from src.data.data_obj.feature_history import extend_history
 import numpy as np
 from src.usePydl.predictors.predictor import Predictor
+import CONFIG
 
-MIN_NUM_SAMPLES = 4
-DEPTH_ITERATIONS= 20
 MAX_TIME = 20
 EPSILON = 1e-9
 
@@ -23,54 +22,39 @@ class LocalGreedyPredictor(Predictor):
 
 def build_tree_iteratively(feature_history):
     root_predictor = LocalGreedyPredictor(feature_history)
-
-    def get_map(_ids):
-        return {j: jd for j, jd in enumerate(_ids)}
-
-    def should_expand(leaf_error, predictor_error):
-        return (leaf_error - predictor_error) > EPSILON
-
+    feature_history.tree = root_predictor.tree
     future_to_leaf = {}
-    executor = ProcessPoolExecutor(max_workers=6)
-    root_history = feature_history
-    root_history.tree = root_predictor.tree
-    #first root pass ===================================
-    leafs = root_predictor.tree.get_leafs()
 
-    for leaf in leafs:
-        sample_ids = leaf["value"].get("sample_ids", [])
-        leaf_error = leaf.get("error", 0)
-        if len(sample_ids) >= MIN_NUM_SAMPLES and len(sample_ids) != feature_history.samples.shape[0]:
-            if should_expand(leaf_error, root_predictor.error):
-                sub_samples = feature_history.samples[sample_ids]
-                new_history = extend_history(sub_samples, root_history, leaf["value"]["leaf_id"])
-                new_history.creat_splits()
-                future = executor.submit(generate_pred, new_history)
-                future_to_leaf[future] = new_history
+    def submit_leaves(history, predictor_error, total_samples=None):
+        for leaf in history.tree.get_leafs():
+            sample_ids = leaf["value"].get("sample_ids", [])
+            leaf_error = leaf.get("error", 0)
 
-    while future_to_leaf:
-        done, not_done = wait(future_to_leaf.keys(), return_when=FIRST_COMPLETED)
-
-        for future in done:
-            current_history = future_to_leaf.pop(future)
-            try:
-                new_predictor = future.result()
-            except Exception as exc:
-                print(f"EnsemblePredictor child generated an exception: {exc}")
+            if total_samples and len(sample_ids) == total_samples:
                 continue
-            new_tree = new_predictor.tree
-            current_history.tree = new_tree
-            if current_history.depth < DEPTH_ITERATIONS:
-                new_leafs = new_tree.get_leafs()
-                for leaf in new_leafs:
-                    child_sample_ids = leaf["value"].get("sample_ids", [])
-                    child_leaf_error = leaf.get("error", 0)
-                    if len(child_sample_ids) >= MIN_NUM_SAMPLES:
-                        if should_expand(child_leaf_error, new_predictor.error):
-                            child_sub_samples = current_history.samples[child_sample_ids]
-                            new_history = extend_history(child_sub_samples, current_history, leaf["value"]["leaf_id"])
-                            new_history.creat_splits()
-                            future = executor.submit(generate_pred, new_history)
-                            future_to_leaf[future] = new_history
-    executor.shutdown()
+
+            if len(sample_ids) >= CONFIG.MIN_SAMPLES_IN_LEAF and (leaf_error - predictor_error) > EPSILON:
+                sub_history = extend_history(history.samples[sample_ids], history, leaf["value"]["leaf_id"])
+                sub_history.creat_splits()
+                future = executor.submit(generate_pred, sub_history)
+                future_to_leaf[future] = sub_history
+
+    with ProcessPoolExecutor(max_workers=6) as executor:
+        submit_leaves(feature_history, root_predictor.error, total_samples=feature_history.samples.shape[0])
+        while future_to_leaf:
+            done, _ = wait(future_to_leaf.keys(), return_when=FIRST_COMPLETED)
+
+            for future in done:
+                current_history = future_to_leaf.pop(future)
+                try:
+                    new_pred = future.result()
+                except Exception as exc:
+                    print(f"Child predictor generated an exception: {exc}")
+                    continue
+
+                current_history.tree = new_pred.tree
+
+                if current_history.depth < CONFIG.MAX_GREEDY_DEPTH:
+                    submit_leaves(current_history, new_pred.error)
+
     return root_predictor

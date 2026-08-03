@@ -1,5 +1,8 @@
 import re
 from typing import Dict, List
+
+import numpy as np
+
 from src.usePydl.predictors.interval import Intervals
 
 
@@ -7,6 +10,89 @@ class Tree:
 
     def __init__(self, tree):
         self.tree : Dict = tree
+
+
+    def get_leaf_id_for_sample(self, sample):
+        if sample is None or self.tree is None:
+            return None
+
+        sample_arr = np.asarray(sample)
+        if sample_arr.ndim == 2:
+            return np.array([self.get_leaf_id_for_sample(s) for s in sample_arr])
+
+        def traverse(node):
+            if "value" in node:
+                return node["value"].get("leaf_id", 0)
+
+            feat_id = int(node['feat'])
+            split_val = node.get('split_val', '')
+            val = sample_arr[feat_id]
+
+            if isinstance(split_val, str):
+                vals = parse_values(split_val)
+                if not vals:
+                    cond = True
+                elif 'bigger_eq' in split_val:
+                    cond = (val >= vals[0])
+                elif 'smaller_eq' in split_val:
+                    cond = (val <= vals[0])
+                elif 'even' in split_val:
+                    cond = (val == vals[0])
+                elif 'interval' in split_val and len(vals) >= 2:
+                    cond = (vals[0] <= val <= vals[1])
+                else:
+                    cond = (val <= vals[0])
+            else:
+                cond = (val <= float(split_val))
+
+            if cond:
+                return traverse(node["left"]) if "left" in node else traverse(node["right"])
+            else:
+                return traverse(node["right"]) if "right" in node else traverse(node["left"])
+
+        return traverse(self.tree)
+
+    def check_tree_purity_with_samples(self, samples, labels):
+        if samples is None or labels is None or len(samples) == 0:
+            return 0.0, {}
+
+        labels_arr = np.asarray(labels).flatten()
+        samples_arr = np.asarray(samples)
+        if samples_arr.ndim == 1:
+            samples_arr = samples_arr.reshape(1, -1)
+
+        leaf_ids = self.get_leaf_id_for_sample(samples_arr)
+
+        leaf_label_map = {}
+        for l_id, label in zip(leaf_ids, labels_arr):
+            if l_id not in leaf_label_map:
+                leaf_label_map[l_id] = []
+            leaf_label_map[l_id].append(label)
+
+        leaf_purity_info = {}
+        total_purity_sum = 0.0
+        n_leaves = len(leaf_label_map)
+
+        for l_id, l_labels in leaf_label_map.items():
+            l_labels = np.array(l_labels)
+            total_count = len(l_labels)
+            uniques, counts = np.unique(l_labels, return_counts=True)
+            label_probs = dict(zip(uniques, counts / total_count))
+
+            dominant_prob = float(np.max(counts) / total_count)
+            total_purity_sum += dominant_prob
+
+            leaf_purity_info[l_id] = {
+                'count': total_count,
+                'label_probs': label_probs,
+                'purity': dominant_prob,
+                'num_unique_labels': len(uniques)
+            }
+
+        avg_purity = total_purity_sum / n_leaves if n_leaves > 0 else 0.0
+        print(f"Average Leaf Purity: {avg_purity:.4f} across {n_leaves} non-empty leaves.")
+        return avg_purity, leaf_purity_info
+
 
     def get_depth(self):
         def recurse(node,depth):
@@ -57,11 +143,12 @@ class Tree:
         self.tree = merge(self.tree)
 
 
-    def get_intervals_each_path(self, chunkInfo):
+
+    def get_intervals_each_path(self, feat_history):
         paths = self.get_all_paths()
         interval_path_dic = {}
         for i, path in enumerate(paths):
-            interval_path_dic[i] = calc_intervals_of_path(path['path'], chunkInfo)
+            interval_path_dic[i] = calc_intervals_of_path(path['path'], feat_history)
         return interval_path_dic
 
     def get_all_paths(self): #can be used after remapping tree
@@ -103,10 +190,10 @@ class Tree:
         return all_paths
 
 
-def calc_intervals_of_path(path, chunkInfo):
+def calc_intervals_of_path(path, feat_history):
     feat_interval_dic = {}
-    for feature_id in range(len(chunkInfo.featureTypes)):
-        intervals = Intervals(feat_id=feature_id, chunkinfo=chunkInfo)
+    for feature_id in range(len(feat_history.feature_info_list)):
+        intervals = Intervals(feat_id=feature_id, chunkinfo=feat_history.chunkInfo)
         feat_interval_dic[feature_id] = add_intervals_for_feat(path.get(feature_id), intervals)
     return feat_interval_dic
 
@@ -128,12 +215,14 @@ def parse_values(value_str: str) -> List[float]:
 def add_left_interval(value_str: str, intervals: Intervals):
     #is the true branch
     vals = parse_values(value_str)
+    max_val = intervals.max_val
+    min_val = intervals.min_val
     if not vals:
         return
     if 'bigger_eq' in value_str:
-        intervals.add_interval(vals[0], 1, 'closed')
+        intervals.add_interval(vals[0], max_val, 'closed')
     elif 'smaller_eq' in value_str:
-        intervals.add_interval(0, vals[0], 'closed')
+        intervals.add_interval(min_val, vals[0], 'closed')
     elif 'even' in value_str:
         intervals.add_interval(vals[0], vals[0], 'closed')
     elif 'interval' in value_str and len(vals) >= 2:
@@ -144,17 +233,19 @@ def add_left_interval(value_str: str, intervals: Intervals):
 def add_right_interval(value_str: str, intervals: Intervals):
     #is the false branch
     vals = parse_values(value_str)
+    max_val = intervals.max_val
+    min_val = intervals.min_val
     if not vals:
         return
     if 'bigger_eq' in value_str:
-        intervals.add_interval(0, vals[0], 'half-closed')
+        intervals.add_interval(min_val, vals[0], 'half-closed')
     elif 'smaller_eq' in value_str:
-        intervals.add_interval(vals[0], 1, 'half-open')
+        intervals.add_interval(vals[0], max_val, 'half-open')
     elif 'even' in value_str:
         intervals.add_interval(vals[0], vals[0], 'open')
     elif 'interval' in value_str and len(vals) >= 2:
-        intervals.add_interval(0, vals[0], 'half-closed')
-        intervals.add_interval(vals[1], 1, 'half-open')
+        intervals.add_interval(min_val, vals[0], 'half-closed')
+        intervals.add_interval(vals[1], max_val, 'half-open')
     else:
         print('Invalid key or missing values')
 

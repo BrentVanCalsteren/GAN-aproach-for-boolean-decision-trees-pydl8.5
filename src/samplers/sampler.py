@@ -33,7 +33,7 @@ class Sampler:
         return samplers
 
     @classmethod
-    def generate_new_samples_for_all_features_of_this_type(cls, indices, gen_feats_matrix, conf_thresh: float, samplers: list, intervals_list: List = None):
+    def generate_new_samples_for_all_features_of_this_type(cls, indices, gen_feats_matrix, conf_thresh: float,samplers: list, intervals_list: List = None):
         bundled_feats = []
         if gen_feats_matrix.ndim == 1:
             raise ValueError('if you want to use this method you gen_matrix needs to be 2d')
@@ -41,8 +41,14 @@ class Sampler:
         for i, sampler in enumerate(samplers):
             single_feat = np.array([])
             attempts = 0
+            min_v, max_v = None, None
+            if intervals_list is not None and i < len(intervals_list):
+                min_v, max_v = intervals_list[i].get_complete_domain()
+
             while len(single_feat) < n and attempts < 100:
                 gen_feat = sampler.sorted_samples(n=n)
+                if min_v is not None and max_v is not None:
+                    gen_feat = np.clip(gen_feat, min_v, max_v)
                 scores = sampler.score_feature(gen_feat)
                 valid_mask = scores >= conf_thresh
                 gen_feat_good = gen_feat[valid_mask]
@@ -54,6 +60,9 @@ class Sampler:
                 if attempts == 50:
                     print('difficult finding exemples')
                 attempts += 1
+
+            if min_v is not None and max_v is not None and single_feat.size > 0:
+                single_feat = np.clip(single_feat, min_v, max_v)
 
             bundled_feats.append(single_feat[:n].flatten())
         gen_feats_matrix[indices] = np.array(bundled_feats)

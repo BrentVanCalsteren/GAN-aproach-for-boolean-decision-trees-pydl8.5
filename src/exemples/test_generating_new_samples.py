@@ -7,6 +7,7 @@ from sklearn.model_selection import train_test_split
 from src.usePydl.classifier.ensemble_classifier import EnsembleClassifier
 import random
 from sklearn.metrics import accuracy_score, classification_report
+import CONFIG
 
 #THIS IS A FIRST TEST ON USING PYDL IN DATA GENERATION
 # why would we like to use dl trees, well dl algoritm looks at trees differently than the convetional approash
@@ -50,7 +51,7 @@ def test_data_generation():
     #==========================
     #create splits
     feature_data = sample_obj.current_feat_hist
-    feature_data.creat_splits(total_num_splits=50)
+    feature_data.creat_splits(total_num_splits=CONFIG.MAX_BOOL_SPLITS)
     # test image convertion
     splits = feature_data.get_splits()
     same_splits = feature_data.splits_obj.map_samples_to_splits(samples=samples)

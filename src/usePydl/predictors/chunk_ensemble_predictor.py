@@ -16,6 +16,7 @@ class ChunkEnsemblePredictor:
         predictor = build_tree_iteratively(feature_history)
         self.predictors.append(predictor)
         self.chunk_sizes.append(feature_history.samples.shape[0])
+
     def gen_new_data_based_tree_structure(self, n: int = 100, conf: float = 0.8) -> np.ndarray:
         if len(self.predictors) == 0:
             raise ValueError("No chunk predictors in ensemble. Call add_chunk() first.")

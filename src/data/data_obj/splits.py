@@ -2,7 +2,7 @@ import re
 from typing import Dict, List
 from src.usePydl.error_fun import IntervalSizesError
 import numpy as np
-from src.data.divisive_clustering_1D import DivisiveCluster
+from src.data.find_largest_gaps import DivisiveCluster
 
 
 

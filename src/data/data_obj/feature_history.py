@@ -75,7 +75,7 @@ class FeatureHistory:
             for i in range(len(self.chunkInfo.feature_importance)):
                 a = int(total_num_splits*self.chunkInfo.feature_importance[i])
                 feat_splits_num.append(a)
-        else: feat_splits_num = [total_num_splits//i for i in range(len(self.chunkInfo.featureType))]
+        else: feat_splits_num = [total_num_splits//len(self.feature_info_list) for _ in range(len(self.feature_info_list))]
         self.splits_obj = Splits(max_splits_each_feature=feat_splits_num, samples=self.samples)
         for feature_info in self.feature_info_list:
             self.splits_obj.create_splits_from_feature(feature_info.feature_array,feature_info.feat_id)
@@ -155,6 +155,6 @@ def make_num(raw_feature_data):
     except (ValueError, TypeError):
         unique_values = np.unique(raw_feature_data)
         indexes = {val: idx for idx, val in enumerate(unique_values)}
-        num_arr = np.array([indexes[val] for val in raw_feature_data])
+        num_arr = np.array([indexes[val] for val in raw_feature_data]).astype(float)
         #maybe store the original strings? but would never need them (always want it to be numbers)
     return num_arr

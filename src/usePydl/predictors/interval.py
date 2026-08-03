@@ -25,8 +25,8 @@ class Intervals:
             if start <= end:
                 interval = [start, end]
         if interval[0] >= interval[1]:
-            interval[0] = max(0.0, interval[0] - 1e-6)
-            interval[1] = min(1.0, interval[1] + 1e-6)
+            interval[0] = max(self.min_val, interval[0] - 1e-6)
+            interval[1] = min(self.max_val, interval[1] + 1e-6)
         return interval
 
 

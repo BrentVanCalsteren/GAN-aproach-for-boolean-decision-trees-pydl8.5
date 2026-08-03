@@ -13,6 +13,7 @@ class Samples:
         self.samples = np.array([])
         self.labels = np.array([])
         self.loader = None
+        self.active_chunk = None
 
         self.load_new_dataset(dataset, data_type)
 
@@ -36,6 +37,11 @@ class Samples:
         self.chunk_info.processed_feat_min = min_vals
 
     def load_chunk(self, chunk_id):
+        if self.active_chunk is not None and self.active_chunk == chunk_id:
+            return
+        self.active_chunk = chunk_id
+        self.current_feat_hist = None
+        self.copy_hist = None
         samples, labels =  self.loader.load_chunk(chunk_id)
         indices = np.arange(len(samples))
         np.random.shuffle(indices)
@@ -45,16 +51,27 @@ class Samples:
         self.labels = labels
         self.pre_process_samples()
 
-    def get_best_matching_label(self, samples, chunk_id):
+    def get_best_matching_label(self, samples, chunk_id=0):
+        self.load_chunk(chunk_id)
         known_labels = self.labels.flatten()
-        labels = []
-        for sample in samples:
-            distances = np.linalg.norm(self.samples - sample, axis=1)
-            closest_index = np.argmin(distances)
-            labels.append(known_labels[closest_index])
-        return np.array(labels)
+        if len(known_labels) == 0 or self.samples.size == 0:
+            raise ValueError("No reference samples or labels available in Samples object.")
+        if self.chunk_info.feature_importance is not None:
+            weights = np.asarray(self.chunk_info.feature_importance, dtype=float)
+            if weights.shape[0] == samples.shape[1]:
+                weights_sqrt = np.sqrt(np.maximum(weights, 0.0))
+                diff = (samples[:, np.newaxis, :] - self.samples[np.newaxis, :, :]) * weights_sqrt
+                distances = np.linalg.norm(diff, axis=2)
+            else:
+                diff = samples[:, np.newaxis, :] - self.samples[np.newaxis, :, :]
+                distances = np.linalg.norm(diff, axis=2)
+        else:
+            diff = samples[:, np.newaxis, :] - self.samples[np.newaxis, :, :]
+            distances = np.linalg.norm(diff, axis=2)
+        closest_indices = np.argmin(distances, axis=1)
+        return known_labels[closest_indices]
 
-    def save_feature_history(self, is_scale):
+    def save_feature_history(self, is_scale=CONFIG.APPLY_SCALE):
         new_hist = FeatureHistory(samples=self.samples, chunkInfo=self.chunk_info, is_scale=is_scale)
         new_hist.past = self.current_feat_hist
         self.copy_hist = new_hist
@@ -62,7 +79,7 @@ class Samples:
         self.samples = new_hist.get_sample_array_from_history()
 
 
-    def reverse_history(self,samples, is_scale):
+    def reverse_history(self,samples, is_scale=CONFIG.APPLY_SCALE):
         if is_scale:
             old_samples = self.copy_hist.get_rescaled_sample_based_on_history(samples)
         else: old_samples = samples
@@ -76,7 +93,7 @@ class Samples:
 #################### process samples functions #######################################
 
     def pre_process_samples(self):
-        self.save_feature_history(is_scale=True)
+        self.save_feature_history()
         if CONFIG.ROTATE_DIM:
             self.aply_PCA_rotation()
         if CONFIG.REDUCE_FEAT:
@@ -93,7 +110,7 @@ class Samples:
             samples = self.extend_with_NN(samples)
         if CONFIG.ROTATE_DIM:
             samples = self.restore_PCA(samples)
-        samples = self.reverse_history(samples, is_scale=True)
+        samples = self.reverse_history(samples)
         self.reset_copy_hist()
         return samples, labels.flatten()
 ############ helper #######################

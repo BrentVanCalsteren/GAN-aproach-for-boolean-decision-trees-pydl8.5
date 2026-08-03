@@ -14,7 +14,7 @@ class IterativeDeepeningPredictor:
 
 
     def fit_initial_chunk(self, feature_history: FeatureHistory):
-        print(f"--- Training IterativeDeepeningPredictor Initial Chunk (samples: {feature_history.samples.shape}) ---")
+        print(f"new ChunkDeepeningPredictor")
         feature_history.creat_splits()
         self.master_history = feature_history
         self.master_predictor = build_tree_iteratively(feature_history)
@@ -26,8 +26,7 @@ class IterativeDeepeningPredictor:
             self.fit_initial_chunk(feature_history)
             return
         self.chunk_count += 1
-        print(
-            f"--- Extending IterativeDeepeningPredictor with Chunk #{self.chunk_count} (samples: {feature_history.samples.shape}) ---")
+        print(f"extend ChunkDeepeningPredictor with Chunk #{self.chunk_count}")
         feature_history.creat_splits()
         chunk_predictor = build_tree_iteratively(feature_history)
         if chunk_predictor.tree is not None:
@@ -42,5 +41,5 @@ class IterativeDeepeningPredictor:
 
     def gen_new_data_based_tree_structure(self, n: int = 100, conf: float = 0.8) -> np.ndarray:
         if self.master_predictor is None:
-            raise ValueError("IterativeDeepeningPredictor has not been fit yet.")
+            raise ValueError("no predictor found")
         return self.master_predictor.gen_new_data_based_tree_structure(n=n, conf=conf)
