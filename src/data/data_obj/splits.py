@@ -1,7 +1,6 @@
 import re
 from typing import Dict, List
 from src.usePydl.error_fun import IntervalSizesError
-
 import numpy as np
 from src.data.divisive_clustering_1D import DivisiveCluster
 
@@ -27,24 +26,24 @@ class Splits:
         return splits.T
 
 
-    def create_splits_from_feature(self, feature_array: np.ndarray, f_type):
+    def create_splits_from_feature(self, feature_array: np.ndarray,feat_id):
         print('generating splits for feature')
-        new_splits = self._generate_best_splits(feature_array, f_type)
-        n_new_splits = self._save_best_splits(new_splits)
+        new_splits = self._generate_best_splits(feature_array, feat_id)
+        n_new_splits = self._save_best_splits(new_splits, feat_id)
         if self.feature_index_array is None:
             self.feature_index_array = [0]*n_new_splits
         else:
             max = np.max(self.feature_index_array)
             self.feature_index_array += [max+1]*n_new_splits
 
-    def _save_best_splits(self, new_splits):
+    def _save_best_splits(self, new_splits,feat_id):
         splits = np.array(list(new_splits.values()))
         scores = self.score_splits(splits)
         vals = list(new_splits.keys())
         splits = np.array(list(new_splits.values()))
         valid_candidates = list(zip(scores, vals, splits))
         valid_candidates.sort(key=lambda x: x[0], reverse=True)
-        best_candidates = valid_candidates[:self.max_splits_each_feature]
+        best_candidates = valid_candidates[:self.max_splits_each_feature[feat_id]]
         new_best_splits = [c[2] for c in best_candidates]
         new_best_vals = [c[1] for c in best_candidates]
         self.splits.extend(new_best_splits)
@@ -70,27 +69,25 @@ class Splits:
         inter_scores = interval_score()
         return gini_score + inter_scores
 
-    def _generate_best_splits(self, feature, f_type):
-        if f_type == 'discrete':
-            new_splits = self._generate_discrete_splits(feature)
-        else:
-            new_splits = self._generate_continues_splits(feature)
+    def _generate_best_splits(self, feature, feat_id):
+        new_splits = self._generate_discrete_splits(feature,feat_id)
+        new_splits.update(self._generate_continues_splits(feature, feat_id))
         return remove_duplicate_splits(new_splits)
 
-    def _generate_discrete_splits(self, feature):
+    def _generate_discrete_splits(self, feature,feat_id):
         new_splits = {}
         uniques, counts = np.unique(feature, return_counts=True)
-        top_uniques = uniques[np.argsort(-counts)]
+        top_uniques = uniques[np.argsort(-counts)][:self.max_splits_each_feature[feat_id]]
         for val in top_uniques:
             new_splits[f"even_{val}"] = (feature == val).astype(int)
         return new_splits
 
-    def _generate_continues_splits(self, feature):
+    def _generate_continues_splits(self, feature, feat_id):
         new_splits = {}
         #binning
         thresholds = None
         for i in range(feature.shape[0]):
-            percentiles = np.linspace(5, 95, min(self.max_splits_each_feature * 2, 20))
+            percentiles = np.linspace(5, 95, min(self.max_splits_each_feature[feat_id] * 2, 20))
             if thresholds is None:
                 thresholds = np.unique(np.percentile(feature, percentiles))
             else:
@@ -99,7 +96,7 @@ class Splits:
         #clustering
         cluster_thresholds = []
         cluster = DivisiveCluster()
-        cluster.max_depth = self.max_splits_each_feature
+        cluster.max_depth = self.max_splits_each_feature[feat_id]
         cluster.fit(feature)
         for i in range(feature.shape[0]):
             intervals = cluster.get_clusters_at_depth(i)

@@ -17,7 +17,7 @@ class TabularData:
     self.complete_X: Optional[np.ndarray] = None
     self.missing_X: Optional[np.ndarray] = None
     self.chunk_files: List[Path] = []
-    self.num_chunks: int = 0
+    self.n_chunks: int = 0
     self.split_if_needed()
 
   def split_if_needed(self) -> List[Path]:
@@ -36,7 +36,7 @@ class TabularData:
     total_samples = len(df)
     if total_samples <= self.chunk_size:
       self.chunk_files = [self.file_path]
-      self.num_chunks = 1
+      self.n_chunks = 1
       return self.chunk_files
 
     # Randomly shuffle rows for unique chunking
@@ -47,30 +47,24 @@ class TabularData:
     ext = self.file_path.suffix or '.csv'
 
     self.chunk_files = []
-    self.num_chunks = int(np.ceil(total_samples / self.chunk_size))
+    self.n_chunks = int(np.ceil(total_samples / self.chunk_size))
 
-    for i in range(self.num_chunks):
+    for i in range(self.n_chunks):
       chunk_df = df_shuffled.iloc[i * self.chunk_size : (i + 1) * self.chunk_size]
       chunk_path = parent_dir / f'{stem}_chunk_{i + 1}{ext}'
       chunk_df.to_csv(chunk_path, index=False)
       self.chunk_files.append(chunk_path)
 
     print(
-        f'Dataset has {total_samples} samples. Split into {self.num_chunks}'
+        f'Dataset has {total_samples} samples. Split into {self.n_chunks}'
         f' chunks in: {parent_dir}')
     return self.chunk_files
 
-  def loading_chunk(self, chunk_num: int = 1) -> Tuple[np.ndarray, np.ndarray]:
-    if chunk_num < 1 or chunk_num > self.num_chunks:
-      raise IndexError(
-          f'chunk_num {chunk_num} out of range. Valid chunks: 1 to'
-          f' {self.num_chunks}'
-      )
-
-    target_file = self.chunk_files[chunk_num - 1]
+  def load_chunk(self, chunk_num: int = 0) -> Tuple[np.ndarray, np.ndarray]:
+    chunk_loaction = self.chunk_files[chunk_num]
     try:
       df = pd.read_csv(
-          target_file,
+          chunk_loaction,
           sep=None,
           header=0,
           encoding='utf-8',
@@ -83,7 +77,7 @@ class TabularData:
       self.missing_X = raw_samples[missing_mask]
 
       print(
-          f'Loaded chunk {chunk_num}/{self.num_chunks} ({target_file.name}): '
+          f'Loaded chunk {chunk_num}/{self.n_chunks} ({chunk_loaction.name}): '
           f'complete {self.complete_X.shape[0]}, missing'
           f' {self.missing_X.shape[0]}'
       )
@@ -91,7 +85,7 @@ class TabularData:
       return self.get_samples()
 
     except Exception as e:
-      raise RuntimeError(f'Error loading dataset chunk from {target_file}: {e}')
+      raise RuntimeError(f'Error loading dataset chunk from {chunk_loaction}: {e}')
 
   def save_output_to_folder(self, tabular_data: np.ndarray, labels: np.ndarray, folder_name='output', filename='output.csv',):
     os.makedirs(folder_name, exist_ok=True)

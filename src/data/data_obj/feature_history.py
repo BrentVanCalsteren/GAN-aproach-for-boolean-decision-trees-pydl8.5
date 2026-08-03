@@ -13,7 +13,7 @@ def create_new_history(samples):
     return feat_history
 
 def extend_history(new_samples, old_history: FeatureHistory, l_id):
-    new_history = FeatureHistory(samples=new_samples, is_scale=False)
+    new_history = FeatureHistory(samples=new_samples, is_scale=False, chunkInfo=old_history.chunkInfo)
     old_history.add_future(new_history)
     new_history.set_past(old_history)
     new_history.leaf_id = l_id
@@ -23,10 +23,12 @@ def extend_history(new_samples, old_history: FeatureHistory, l_id):
 
 
 class FeatureHistory:
-    def __init__(self, samples, is_scale=True):
+    def __init__(self, samples, is_scale=True, chunkInfo=None):
         self.feature_info_list = None
+        self.chunkInfo = chunkInfo
         self.past = None
         self.future = []
+        self.is_scale = is_scale
 
         self.splits_obj: Splits = None
         self.samples = None
@@ -39,7 +41,7 @@ class FeatureHistory:
 
 
     def create_current_history(self, samples, is_scale):
-        self.feature_info_list = [FeatureInfo(feat, is_scale) for feat in samples.T] #will auto scale each feature
+        self.feature_info_list = [FeatureInfo(feat,feat_id, self.chunkInfo, is_scale) for feat_id, feat in enumerate(samples.T)] #will auto scale each feature
         self.samples = np.array([l.feature_array for l in self.feature_info_list]).T
 
     def set_past(self,history: FeatureHistory):
@@ -61,16 +63,22 @@ class FeatureHistory:
 
 
     def get_rescaled_sample_based_on_history(self, samples):
+        if not self.is_scale:
+            return samples
         features = samples.T
         rescaled_features = np.array([self.feature_info_list[i].reverse_scale(f) for i, f in enumerate(features)])
         return rescaled_features.T
 
-    def creat_splits(self, max_num_splits_each_feature=None):
-        if max_num_splits_each_feature is None:
-            max_num_splits_each_feature = 5
-        self.splits_obj = Splits(max_splits_each_feature=max_num_splits_each_feature, samples=self.samples)
+    def creat_splits(self, total_num_splits=50):
+        feat_splits_num = []
+        if self.chunkInfo.feature_importance is not None:
+            for i in range(len(self.chunkInfo.feature_importance)):
+                a = int(total_num_splits*self.chunkInfo.feature_importance[i])
+                feat_splits_num.append(a)
+        else: feat_splits_num = [total_num_splits//i for i in range(len(self.chunkInfo.featureType))]
+        self.splits_obj = Splits(max_splits_each_feature=feat_splits_num, samples=self.samples)
         for feature_info in self.feature_info_list:
-            self.splits_obj.create_splits_from_feature(feature_info.feature_array,feature_info.featureType)
+            self.splits_obj.create_splits_from_feature(feature_info.feature_array,feature_info.feat_id)
 
     def get_splits(self):
         return self.splits_obj.get_splits()
@@ -105,34 +113,33 @@ class FeatureHistory:
 
 
 class FeatureInfo:  # represents a single column of data
-    def __init__(self, feature_data: np.ndarray, is_scale=True):
-        self.min_val = 0
-        self.max_val = 0
-
-        self.featureType = ''
-        self.unique_values  = None
+    def __init__(self, feature_data: np.ndarray,feat_id, chunkInfo, is_scale=True):
+        self.feat_id = feat_id
+        self.chunkInfo = chunkInfo
+        self.featureType = chunkInfo.featureTypes[feat_id]
         self.feature_array = self.scale_and_standardize(feature_data, is_scale)
-        self.check_discrete()
         self.dependent_feat = []
 
     def scale_and_standardize(self, raw_feature_data, is_scale):
         if raw_feature_data is None:    return None
         num_arr = make_num(raw_feature_data)
         if is_scale:
-            self.min_val = np.min(num_arr)
-            self.max_val = np.max(num_arr)
-            if self.max_val - self.min_val == 0:    return np.zeros(len(num_arr))
-            return np.array((num_arr - self.min_val) / (self.max_val - self.min_val))
+            min_val = self.chunkInfo.feats_min_vals[self.feat_id]
+            max_val = self.chunkInfo.feats_max_vals[self.feat_id]
+            if max_val - min_val == 0:    return np.zeros(len(num_arr))
+            return np.array((num_arr - min_val) / (max_val - min_val))
         else:
             return np.array(num_arr)
 
 
     def reverse_scale(self, scaled_arr: np.ndarray):
-        if self.max_val - self.min_val == 0:
-            return np.full_like(scaled_arr, self.min_val)
-        origin = scaled_arr * (self.max_val - self.min_val) + self.min_val
-        if self.featureType == 'discrete':
-            sorted_B = np.sort(self.unique_values)
+        min_val = self.chunkInfo.feats_min_vals[self.feat_id]
+        max_val = self.chunkInfo.feats_max_vals[self.feat_id]
+        if max_val - min_val == 0:
+            return np.full_like(scaled_arr, min_val)
+        origin = scaled_arr * (max_val - min_val) + min_val
+        if self.chunkInfo.featureTypes[self.feat_id] == 'discrete':
+            sorted_B = np.sort(self.chunkInfo.discrete_values[self.feat_id])
             idx = np.searchsorted(sorted_B,origin)
             idx = np.clip(idx, 1, len(sorted_B) - 1)
             left = sorted_B[idx - 1]
@@ -141,14 +148,6 @@ class FeatureInfo:  # represents a single column of data
             mapped = np.where(use_left, left, right)
             return mapped
         else: return origin
-
-    def check_discrete(self):
-        unique_vals = np.unique(self.feature_array)
-        if len(unique_vals) <= (self.feature_array.shape[0] * DESCRETE_PERCENTILE // 100):
-            self.featureType = 'discrete'
-            self.unique_values = unique_vals
-        else:
-            self.featureType = 'continuous'
 
 def make_num(raw_feature_data):
     try:

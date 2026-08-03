@@ -44,12 +44,13 @@ DO_CLASSIFICATION = True
 
 def test_data_generation():
     sample_obj = Samples(dataset='iris',data_type='tabular')
-    samples = sample_obj.get_samples()
-    sample_obj.save_output(samples=samples,output_name='original_encoded')
+    sample_obj.load_chunk(0)
+    samples = sample_obj.samples
+    sample_obj.save_output(samples=samples,llables=None,output_name='original_encoded')
     #==========================
     #create splits
     feature_data = sample_obj.current_feat_hist
-    feature_data.creat_splits(max_num_splits_each_feature=10)
+    feature_data.creat_splits(total_num_splits=50)
     # test image convertion
     splits = feature_data.get_splits()
     same_splits = feature_data.splits_obj.map_samples_to_splits(samples=samples)
@@ -63,21 +64,20 @@ def test_data_generation():
     #now let's generate new data
 
     ensemble_pred = build_tree_iteratively(feature_data)
-    samples_gen = ensemble_pred.gen_new_data_based_tree_structure(n=200, conf=0.9)
+    samples_gen = ensemble_pred.gen_new_data_based_tree_structure(n=200, conf=0.0)
     #pred = Predictor(samples=samples,splits=splits,max_depth=3,min_sup=1,time=100,n_samples=samples.shape[0])
     #samples_gen = pred.gen_new_data(split_obj=splits_obj, n=150, conf=0.8)
     #=================================================
     #now let's see if classification is better with extra generated data
-    splits_gen_x = feature_data.splits_obj.map_samples_to_splits(samples_gen,-1)
-
-    y_gen = value_to_index(samples_gen[:, -1])
+    splits_gen_x = feature_data.splits_obj.map_samples_to_splits(samples_gen)
+    labels_gen = sample_obj.get_best_matching_label(samples=samples_gen, chunk_id=0)
     #test on generated data alone
-    classify(splits_gen_x, test_x, y_gen, test_y)
+    classify(splits_gen_x, test_x, labels_gen, test_y)
     splits_combined = np.vstack((train_x, splits_gen_x))
-    y_combined = np.hstack((train_y, y_gen))
+    y_combined = np.hstack((train_y, labels_gen))
     # test on combined data
     classify(splits_combined, test_x, y_combined, test_y)
-    sample_obj.save_output(samples=samples_gen[:-1,:], output_name='generated')
+    sample_obj.save_output(samples=samples_gen, llables=labels_gen,output_name='generated')
 
 
 def train_test(splits, samples, test_size=0.2):

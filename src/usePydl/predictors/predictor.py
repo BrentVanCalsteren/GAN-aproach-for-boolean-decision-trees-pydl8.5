@@ -18,7 +18,7 @@ class Predictor:
 
     def __init__(self, feature_history, max_depth, min_sup, time):
         print('starting dl predictor...')
-        error = IntervalSizesError(feature_history.samples)
+        error = IntervalSizesError(feature_history.samples, feature_history.chunkInfo.feature_importance)
         leaf_val = ReturnIDSandPROB(feature_history.get_first_hist_depth_0().samples.shape[0])
         self.error = error.good_error
         self.dl_predictor = DL85Predictor(error_function=error,
@@ -49,7 +49,7 @@ class Predictor:
             raise ValueError("Tree has no leaves.")
 
         feat_info_list = self.feature_history.feature_info_list
-        interval_path_dic = complete_tree.get_intervals_each_path(feat_len=len(feat_info_list))
+        interval_path_dic = complete_tree.get_intervals_each_path(chunkInfo=self.feature_history.chunkInfo)
 
         cont_disc_feats = [info.featureType for info in feat_info_list]
 
@@ -108,7 +108,7 @@ class Predictor:
                 samplers_for_feat = []
                 for intervals_feat in intervals_cont:
                     interval = intervals_feat.get_complete_domain()
-                    sampler = MultivariateGaussianSampler()
+                    sampler = SingleGaussian1DSampler()
                     sampler.fit(np.array(interval))
                     samplers_for_feat.append(sampler)
                 SingleGaussian1DSampler.generate_new_samples_for_all_features_of_this_type(
@@ -126,5 +126,5 @@ class Predictor:
         print(f"Generated {sample_count} samples.")
         if all_new_samples.size == 0:
             return all_new_samples
-        return np.clip(all_new_samples, 0, 1)
+        return all_new_samples
 

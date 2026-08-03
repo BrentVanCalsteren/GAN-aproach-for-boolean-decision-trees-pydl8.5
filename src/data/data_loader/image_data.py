@@ -11,7 +11,7 @@ valid_extensions = ['.png', '.jpg', '.jpeg', '.bmp']
 
 class ImageData:
 
-  def __init__(self, file_path: str | Path, chunk_size: int = 200, n_max_each_class: Optional[int] = None, seed: Optional[int] = 42):
+  def __init__(self, file_path: str | Path, chunk_size: int = 500, n_max_each_class: Optional[int] = None, seed: Optional[int] = 42):
 
     self.file_path = Path(file_path)
     self.chunk_size = chunk_size
@@ -23,7 +23,7 @@ class ImageData:
     self.n_channels: int = 1
     self.is_greyscale: bool = False
     self.chunk_files: List[Path] = []
-    self.num_chunks: int = 0
+    self.n_chunks: int = 0
     self.class_to_idx: dict = {}
     self.split_if_needed()
 
@@ -64,41 +64,35 @@ class ImageData:
       chunk_path = parent_dir / f'{stem}_chunk_1.csv'
       pd.DataFrame(all_samples, columns=['image_path', 'label']).to_csv(chunk_path, index=False)
       self.chunk_files = [chunk_path]
-      self.num_chunks = 1
+      self.n_chunks = 1
       return self.chunk_files
 
     rng = random.Random(self.seed)
     rng.shuffle(all_samples)
     self.chunk_files = []
-    self.num_chunks = int(np.ceil(total_samples / self.chunk_size))
+    self.n_chunks = int(np.ceil(total_samples / self.chunk_size))
 
-    for i in range(self.num_chunks):
+    for i in range(self.n_chunks):
       chunk_samples = all_samples[i * self.chunk_size : (i + 1) * self.chunk_size]
       chunk_path = parent_dir / f'{stem}_chunk_{i + 1}.csv'
       pd.DataFrame(chunk_samples, columns=['image_path', 'label']).to_csv(chunk_path, index=False)
       self.chunk_files.append(chunk_path)
 
-    print(f'Dataset contained {total_samples} images. Created {self.num_chunks}'
+    print(f'Dataset contained {total_samples} images. Created {self.n_chunks}'
         f' chunk manifests in: {parent_dir}')
     return self.chunk_files
 
-  def loading_chunk(self, chunk_num: int = 1) -> Tuple[np.ndarray, np.ndarray]:
-    if chunk_num < 1 or chunk_num > self.num_chunks:
-      raise IndexError(
-          f'chunk_num {chunk_num} out of range. Valid chunks: 1 to'
-          f' {self.num_chunks}'
-      )
-
-    target_manifest = self.chunk_files[chunk_num - 1]
+  def load_chunk(self, chunk_num: int = 0) -> Tuple[np.ndarray, np.ndarray]:
+    chunk_loaction = self.chunk_files[chunk_num]
 
     try:
-      df_chunk = pd.read_csv(target_manifest)
+      df_chunk = pd.read_csv(chunk_loaction)
       features = []
       labels = []
 
       for _, row in df_chunk.iterrows():
         img_path = Path(row['image_path'])
-        label_idx = int(row['label'])
+        label_id = int(row['label'])
 
         try:
           img = Image.open(img_path)
@@ -117,26 +111,26 @@ class ImageData:
             img_array = np.asarray(img, dtype=np.float32)
 
           features.append(img_array)
-          labels.append(label_idx)
+          labels.append(label_id)
 
         except Exception as e:
           print(f'Failed to load image {img_path}: {e}')
 
       if not features:
-        raise ValueError(f'No valid images loaded from manifest {target_manifest}')
+        raise ValueError(f'No valid images loaded {chunk_loaction}')
 
       self.X = np.array(features)
       self.Y = np.array(labels).reshape(-1, 1)
 
       print(
-          f'Loaded chunk {chunk_num}/{self.num_chunks}'
-          f' ({target_manifest.name}): {self.X.shape[0]} samples loaded.'
+          f'Loaded chunk {chunk_num}/{self.n_chunks}'
+          f' ({chunk_loaction.name}): {self.X.shape[0]} samples loaded.'
       )
       return self.get_samples()
 
     except Exception as e:
       raise RuntimeError(
-          f'Error loading image chunk from {target_manifest}: {e}'
+          f'Error loading image chunk from {chunk_loaction}: {e}'
       )
 
   def image_arr_to_tabular(self) -> np.ndarray:

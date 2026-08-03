@@ -1,15 +1,14 @@
 from typing import List
 
-import numpy as np
-
-
 class Intervals:
-    def __init__(self):
+    def __init__(self,feat_id, chunkinfo):
+        self.min_val = chunkinfo.processed_feat_min[feat_id]
+        self.max_val = chunkinfo.processed_feat_max[feat_id]
         self.interval_list: List[Interval] = []
         self.generate_start_interval()
 
     def generate_start_interval(self):
-        self.interval_list.append(Interval(0.0, 1.0, 'closed'))
+        self.interval_list.append(Interval(self.min_val, self.max_val, 'closed'))
 
     def add_interval(self, startpoint, endpoint, closureType):
         interval = Interval(startpoint, endpoint, closureType)
@@ -17,18 +16,17 @@ class Intervals:
             self.interval_list.append(interval)
 
     def get_complete_domain(self):
-        interval = [0,1]
+        interval = [self.min_val, self.max_val]
         for inter in self.interval_list:
             if not inter.isvalid_interval:
                 continue
             start = max(interval[0], inter.startpoint)
             end = min(interval[1], inter.endpoint)
-            if start > end:
-                print(f'invalid_interval: {start}, {end}:')
-                return []
-            else:
+            if start <= end:
                 interval = [start, end]
-
+        if interval[0] >= interval[1]:
+            interval[0] = max(0.0, interval[0] - 1e-6)
+            interval[1] = min(1.0, interval[1] + 1e-6)
         return interval
 
 

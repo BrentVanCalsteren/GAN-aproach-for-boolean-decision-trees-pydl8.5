@@ -57,11 +57,11 @@ class Tree:
         self.tree = merge(self.tree)
 
 
-    def get_intervals_each_path(self, feat_len: int):
+    def get_intervals_each_path(self, chunkInfo):
         paths = self.get_all_paths()
         interval_path_dic = {}
         for i, path in enumerate(paths):
-            interval_path_dic[i] = calc_intervals_of_path(path['path'], feat_len)
+            interval_path_dic[i] = calc_intervals_of_path(path['path'], chunkInfo)
         return interval_path_dic
 
     def get_all_paths(self): #can be used after remapping tree
@@ -103,14 +103,14 @@ class Tree:
         return all_paths
 
 
-def calc_intervals_of_path(path, num_feat_len):
+def calc_intervals_of_path(path, chunkInfo):
     feat_interval_dic = {}
-    for feature_id in range(num_feat_len):
-        intervals = Intervals()
-        feat_interval_dic[feature_id] = add_intervals(path.get(feature_id), intervals)
+    for feature_id in range(len(chunkInfo.featureTypes)):
+        intervals = Intervals(feat_id=feature_id, chunkinfo=chunkInfo)
+        feat_interval_dic[feature_id] = add_intervals_for_feat(path.get(feature_id), intervals)
     return feat_interval_dic
 
-def add_intervals(path, start_interval):
+def add_intervals_for_feat(path, start_interval):
     if path is None:
         return start_interval
     intervals = start_interval

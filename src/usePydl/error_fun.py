@@ -4,9 +4,13 @@ from scipy.spatial.distance import pdist
 
 #dense bounding boxes
 class IntervalSizesError:
-    def __init__(self, samples):
+    def __init__(self, samples, feature_weights=None):
         self.samples = samples
-        self.good_error = 0.1*samples.shape[1]
+        self.feature_weights = np.asarray(feature_weights, dtype=float) if feature_weights is not None else None
+        if self.feature_weights is not None:
+            self.good_error = 0.1 * np.sum(self.feature_weights)
+        else:
+            self.good_error = 0.1 * samples.shape[1]
 
     def __call__(self, tids):
         sub_samples = self.samples[list(tids)]
@@ -16,14 +20,20 @@ class IntervalSizesError:
         max_per_row = sub_samples.max(axis=0)
         min_per_row = sub_samples.min(axis=0)
         diff = max_per_row - min_per_row
+        if self.feature_weights is not None:
+            return np.sum(diff * self.feature_weights)
         return np.sum(diff)
 
 
 #finds spherical clusters
 class MSEError:
-    def __init__(self, samples: np.ndarray):
+    def __init__(self, samples: np.ndarray, feature_weights=None):
         self.samples = samples
-        self.good_error = 0.02 * samples.shape[1]
+        self.feature_weights = np.asarray(feature_weights, dtype=float) if feature_weights is not None else None
+        if self.feature_weights is not None:
+            self.good_error = 0.02 * np.sum(self.feature_weights)
+        else:
+            self.good_error = 0.02 * samples.shape[1]
 
     def __call__(self, tids):
         indices = np.fromiter(tids, dtype=np.intc)
@@ -31,7 +41,10 @@ class MSEError:
         if sub_samples.shape[0] < 2:
             return 10e6
         mean = np.mean(sub_samples, axis=0)
-        return np.mean(np.sum((sub_samples - mean) ** 2, axis=1))
+        diff_sq = (sub_samples - mean) ** 2
+        if self.feature_weights is not None:
+            return np.mean(np.sum(diff_sq * self.feature_weights, axis=1))
+        return np.mean(np.sum(diff_sq, axis=1))
 
 #Mean Absolute Error
 class MAEError:

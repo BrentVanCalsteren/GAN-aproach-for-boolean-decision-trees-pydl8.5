@@ -6,21 +6,20 @@ from torch.utils.data import DataLoader, TensorDataset
 
 
 def create_encoder_decoder_struct(input_dim, output_dim):
-    hidden_dim = input_dim*2
+    hidden_dim = input_dim * 2
 
     encoder = nn.Sequential(
         nn.Linear(input_dim, hidden_dim),
         nn.BatchNorm1d(hidden_dim),
         nn.ReLU(),
-
-        nn.Linear(hidden_dim, output_dim)
+        nn.Linear(hidden_dim, output_dim),
+        nn.Sigmoid()
     )
 
     decoder = nn.Sequential(
         nn.Linear(output_dim, hidden_dim),
         nn.BatchNorm1d(hidden_dim),
         nn.ReLU(),
-
         nn.Linear(hidden_dim, input_dim),
         nn.Sigmoid()
     )
@@ -50,10 +49,11 @@ class NNencoder:
         self.samples = None
         self.tensor_samples = None
         self.device = torch.device("cpu")
+        self.optimizer = None
 
     def create_new_nn_module(self, samples: np.ndarray) -> None:
         if samples.ndim > 2:
-            print("! This encoder expects a 2D grid as input !")
+            print("!this encoder expects a 2D grid as input!")
             return
 
         if np.max(samples) > 1 or np.min(samples) < 0:
@@ -64,7 +64,37 @@ class NNencoder:
         input_dim = samples.shape[1]
 
         encoder, decoder = create_encoder_decoder_struct(input_dim, self.output_dim)
-        self.nn_module = Module(encoder, decoder).to(self.device)  # Move model to device!
+        self.nn_module = Module(encoder, decoder).to(self.device)
+        self.optimizer = optim.Adam(self.nn_module.parameters(), lr=0.001)
+
+    def partial_fit(self, chunk_samples: np.ndarray, epochs: int = 5, batch_size: int = 32, lr: float = 0.001) -> None:
+        if chunk_samples.ndim > 2:
+            print("!this encoder expects a 2D grid as input!")
+            return
+
+        if np.max(chunk_samples) > 1 or np.min(chunk_samples) < 0:
+            chunk_samples, self.range_samples = scale(chunk_samples)
+
+        if self.nn_module is None:
+            self.create_new_nn_module(chunk_samples)
+
+        if self.optimizer is None:
+            self.optimizer = optim.Adam(self.nn_module.parameters(), lr=lr)
+
+        loader, _ = create_loader_torch(chunk_samples, batch_size)
+        criterion = nn.MSELoss()
+        self.nn_module.train()
+
+        for epoch in range(epochs):
+            loss_batch = 0.0
+            for batch_x, _ in loader:
+                batch_x = batch_x.to(self.device)
+                self.optimizer.zero_grad()
+                outputs = self.nn_module(batch_x)
+                loss = criterion(outputs, batch_x)
+                loss.backward()
+                self.optimizer.step()
+                loss_batch += loss.item()
 
     def train_module(self, batch_size=32, min_error=0.001):
         if self.nn_module is None or self.samples is None:
@@ -74,23 +104,23 @@ class NNencoder:
         print(f"Training nn module until min error < {min_error}")
         loader, self.tensor_samples = create_loader_torch(self.samples, batch_size)
 
-        optimizer = optim.Adam(self.nn_module.parameters(), lr=0.001)
+        if self.optimizer is None:
+            self.optimizer = optim.Adam(self.nn_module.parameters(), lr=0.001)
         criterion = nn.MSELoss()
         self.nn_module.train()
 
         epochs = 0
         current_loss = float('inf')
 
-        # Added max_epochs to prevent infinite loops
-        while current_loss > min_error:
+        while current_loss > min_error and epochs < 500:
             loss_batch = 0
             for batch_x, _ in loader:
                 batch_x = batch_x.to(self.device)
-                optimizer.zero_grad()
+                self.optimizer.zero_grad()
                 outputs = self.nn_module(batch_x)
                 loss = criterion(outputs, batch_x)
                 loss.backward()
-                optimizer.step()
+                self.optimizer.step()
                 loss_batch += loss.item()
 
             current_loss = loss_batch / len(loader)
@@ -106,13 +136,11 @@ class NNencoder:
             print("! This encoder expects a 2D grid as input !")
             return samples
 
-        # Scale new incoming data using the TRAINING min/max
         if np.max(samples) > 1 or np.min(samples) < 0:
             samples = (samples - self.range_samples[0]) / (self.range_samples[1] - self.range_samples[0] + 1e-8)
 
         self.nn_module.eval()
         with torch.no_grad():
-            # Use the input 'samples', NOT 'self.tensor_samples'
             tensor_input = torch.tensor(samples, dtype=torch.float32).to(self.device)
             reduced = self.nn_module.encoder(tensor_input).cpu().numpy()
 
