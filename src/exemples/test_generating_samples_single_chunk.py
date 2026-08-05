@@ -44,23 +44,27 @@ import CONFIG
 DO_CLASSIFICATION = True
 
 def test_data_generation():
-    sample_obj = Samples(dataset='iris',data_type='tabular')
-    sample_obj.load_chunk(0)
-    samples = sample_obj.samples
-    sample_obj.save_output(samples=samples,llables=None,output_name='original_encoded')
+    sample_obj = Samples(dataset='iris',data_type='tabular',labels_at_front=False)
+    sample_obj.load_chunk(chunk_id=0,split_test=0.2)
+    samples_train = sample_obj.samples
+    samples_test = sample_obj.samples_test
+    sample_obj.save_output(samples=samples_train,llables=None,output_name='original_encoded')
+
     #==========================
     #create splits
     feature_data = sample_obj.current_feat_hist
     feature_data.creat_splits(total_num_splits=CONFIG.MAX_BOOL_SPLITS)
     # test image convertion
-    splits = feature_data.get_splits()
-    same_splits = feature_data.splits_obj.map_samples_to_splits(samples=samples)
-    print(f'bool convertion works correctly: {np.equal(splits, same_splits).all()}')
+    train_splits = feature_data.get_splits()
+    same_splits = feature_data.splits_obj.map_samples_to_splits(samples=samples_train)
+    print(f'bool convertion works correctly: {np.equal(train_splits, same_splits).all()}')
+    test_splits = feature_data.splits_obj.map_samples_to_splits(samples=samples_test)
+
     #=========================================
     #now let's test the quality of the splits, good splits will result into good classification with dlclassifier
-    labels = sample_obj.labels.flatten()
-    train_x,test_x,train_y,test_y = train_test(splits=splits, samples=labels,test_size=0.2)
-    classify(train_x,test_x,train_y,test_y)
+    labels_train = sample_obj.labels.flatten()
+    labels_test = sample_obj.labels_test.flatten()
+    classify(train_splits,test_splits,labels_train,labels_test)
     #=================================================
     #now let's generate new data
 
@@ -73,18 +77,13 @@ def test_data_generation():
     splits_gen_x = feature_data.splits_obj.map_samples_to_splits(samples_gen)
     labels_gen = sample_obj.get_best_matching_label(samples=samples_gen, chunk_id=0)
     #test on generated data alone
-    classify(splits_gen_x, test_x, labels_gen, test_y)
-    splits_combined = np.vstack((train_x, splits_gen_x))
-    y_combined = np.hstack((train_y, labels_gen))
+    classify(splits_gen_x, test_splits, labels_gen, labels_test)
+    splits_combined = np.vstack((train_splits, splits_gen_x))
+    y_combined = np.hstack((labels_train, labels_gen))
     # test on combined data
-    classify(splits_combined, test_x, y_combined, test_y)
+    classify(splits_combined, test_splits, y_combined, labels_test)
     sample_obj.save_output(samples=samples_gen, llables=labels_gen,output_name='generated')
 
-
-def train_test(splits, samples, test_size=0.2):
-    splits_train, splits_test, samples_train, samples_test = train_test_split(splits, samples, test_size=test_size,
-                                                        random_state=random.randint(1, 100))
-    return splits_train, splits_test, samples_train, samples_test
 
 def classify_ensemble(x_train, x_test, y_train, y_test):
     if DO_CLASSIFICATION:

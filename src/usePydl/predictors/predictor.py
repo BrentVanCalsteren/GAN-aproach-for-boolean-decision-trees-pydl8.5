@@ -1,6 +1,7 @@
 import numpy as np
 from pydl85 import DL85Predictor
 
+from data.data_obj import feature_history
 from src.usePydl.error_fun import IntervalSizesError, MSEError, DiameterError
 from src.usePydl.leaf import ReturnIDSandPROB
 from src.samplers.multinomial import MultinomialSampler
@@ -9,7 +10,7 @@ from src.samplers.single_gaussian import SingleGaussian1DSampler
 from src.samplers.multivariate_gaussian import MultivariateGaussianSampler
 import CONFIG
 
-from usePydl.predictors.tree import Tree
+from usePydl.predictors.tree import Tree, remap_tree
 
 COMBINE_FEAT = False
 
@@ -17,23 +18,26 @@ COMBINE_FEAT = False
 class Predictor:
     n_samples = None
 
-    def __init__(self, feature_history, max_depth, min_sup, time):
+    def __init__(self, feat_hist, weights, max_depth, min_sup, time):
+        if weights is None:
+            weights = feat_hist.chunkInfo.feature_importance
         print('starting dl predictor...')
-        error = IntervalSizesError(feature_history.samples, feature_history.chunkInfo.feature_importance)
-        leaf_val = ReturnIDSandPROB(feature_history.get_first_hist_depth_0().samples.shape[0])
-        self.error = error.good_error
-        self.dl_predictor = DL85Predictor(error_function=error,
+        error_fun = IntervalSizesError(feat_hist.samples, weights)
+        leaf_val = ReturnIDSandPROB(feat_hist.get_first_hist_depth_0().samples.shape[0])
+        self.dl_predictor = DL85Predictor(error_function=error_fun,
                                           leaf_value_function=leaf_val,
                                           max_depth=max_depth,
                                           min_sup=min_sup,
                                           time_limit=time,
                                           max_error=np.inf)
 
-        self.dl_predictor.fit(feature_history.get_splits())
+        self.dl_predictor.fit(feat_hist.get_splits())
+        self.error = self.dl_predictor.error_
         tree = Tree(tree=self.dl_predictor.tree_)
-        feature_history.tree = tree
+        tree.tree = remap_tree(tree.tree, feature_history=feat_hist)
+        feat_hist.tree = tree
         self.tree = tree
-        self.feature_history = feature_history
+        self.feature_history = feat_hist
 
 
     def predict(self, samples_bin):
@@ -47,16 +51,14 @@ class Predictor:
         complete_tree = self.feature_history.get_complete_tree()
         leafs = complete_tree.get_leafs()
         if len(leafs) == 0:
-            raise ValueError("Tree has no leaves.")
+            raise ValueError("Tree has no leaves")
 
         feat_info_list = self.feature_history.feature_info_list
+        print(f'a path: {complete_tree.get_all_paths()[0]}')
+        print(f'avg feat distribution of path: {complete_tree.avg_features_used_each_path(len(feat_info_list))}')
         interval_path_dic = complete_tree.get_intervals_each_path(feat_history=self.feature_history)
-
-        if CONFIG.ROTATE_DIM or CONFIG.REDUCE_FEAT:
-            cont_disc_feats = ['continuous']*len(feat_info_list)
-        else:
-            cont_disc_feats = [info.featureType for info in feat_info_list]
-
+        cont_disc_feats = ['continuous'] * len(feat_info_list)
+        cont_feat_ids = [t == 'continuous' for t in cont_disc_feats]
 
         probs_each_path = np.array([leaf['value']['rel_prob'] for leaf in leafs])
         prob_sum = np.sum(probs_each_path)
@@ -64,9 +66,6 @@ class Predictor:
             probs_each_path /= prob_sum
         else:
             probs_each_path = np.ones(len(probs_each_path)) / len(probs_each_path)
-
-        disc_feat_ids = [t == 'discrete' for t in cont_disc_feats]
-        cont_feat_ids = [t == 'continuous' for t in cont_disc_feats]
 
         all_new_samples = np.array([])
         indx_list_n = np.random.choice(len(leafs), n, p=probs_each_path)
@@ -81,10 +80,7 @@ class Predictor:
             intervals_disc = []
             intervals_cont = []
             for i in range(len(feat_info_list)):
-                if disc_feat_ids[i]:
-                    intervals_disc.append(intervals_each_feature[i])
-                else:
-                    intervals_cont.append(intervals_each_feature[i])
+                intervals_cont.append(intervals_each_feature[i])
 
 
             if len(intervals_disc) > 0:
@@ -95,7 +91,7 @@ class Predictor:
                     sampler.fit(np.array(interval))
                     disc_samplers.append(sampler)
                 MultinomialSampler.generate_new_samples_for_all_features_of_this_type(
-                    indices=disc_feat_ids,
+                    indices=[],
                     gen_feats_matrix=gen_feat_matrix,
                     conf_thresh=conf,
                     samplers=disc_samplers,

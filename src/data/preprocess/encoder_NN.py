@@ -68,10 +68,9 @@ class NNencoder:
     def __init__(self, output_dim=20):
         self.output_dim = output_dim
         self.nn_module = None
-        self.is_scaled = True
         self.samples = None
         self.tensor_samples = None
-        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.device = "cpu"
         print(f'torch device = {self.device}')
         self.optimizer = None
 

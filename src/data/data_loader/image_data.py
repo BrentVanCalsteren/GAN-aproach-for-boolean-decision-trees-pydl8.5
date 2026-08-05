@@ -82,7 +82,7 @@ class ImageData:
         f' chunk manifests in: {parent_dir}')
     return self.chunk_files
 
-  def load_chunk(self, chunk_num: int = 0) -> Tuple[np.ndarray, np.ndarray]:
+  def load_chunk(self, chunk_num: int = 0, label_at_front=False) -> Tuple[np.ndarray, np.ndarray]:
     chunk_loaction = self.chunk_files[chunk_num]
 
     try:

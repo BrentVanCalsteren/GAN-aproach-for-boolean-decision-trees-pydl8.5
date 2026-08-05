@@ -7,10 +7,6 @@ class IntervalSizesError:
     def __init__(self, samples, feature_weights=None):
         self.samples = samples
         self.feature_weights = np.asarray(feature_weights, dtype=float) if feature_weights is not None else None
-        if self.feature_weights is not None:
-            self.good_error = 0.1 * np.sum(self.feature_weights)
-        else:
-            self.good_error = 0.1 * samples.shape[1]
 
     def __call__(self, tids):
         sub_samples = self.samples[list(tids)]
@@ -30,10 +26,6 @@ class MSEError:
     def __init__(self, samples: np.ndarray, feature_weights=None):
         self.samples = samples
         self.feature_weights = np.asarray(feature_weights, dtype=float) if feature_weights is not None else None
-        if self.feature_weights is not None:
-            self.good_error = 0.02 * np.sum(self.feature_weights)
-        else:
-            self.good_error = 0.02 * samples.shape[1]
 
     def __call__(self, tids):
         indices = np.fromiter(tids, dtype=np.intc)
@@ -50,7 +42,6 @@ class MSEError:
 class MAEError:
     def __init__(self, samples: np.ndarray):
         self.samples = samples
-        self.good_error = 0.1 * samples.shape[1]
 
     def __call__(self, tids):
         sub_samples = self.samples[list(tids)]

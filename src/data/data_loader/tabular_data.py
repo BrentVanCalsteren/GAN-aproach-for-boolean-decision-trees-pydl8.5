@@ -60,7 +60,7 @@ class TabularData:
         f' chunks in: {parent_dir}')
     return self.chunk_files
 
-  def load_chunk(self, chunk_num: int = 0) -> Tuple[np.ndarray, np.ndarray]:
+  def load_chunk(self, chunk_num: int = 0,label_at_front=False) -> Tuple[np.ndarray, np.ndarray]:
     chunk_loaction = self.chunk_files[chunk_num]
     try:
       df = pd.read_csv(
@@ -82,7 +82,7 @@ class TabularData:
           f' {self.missing_X.shape[0]}'
       )
 
-      return self.get_samples()
+      return self.get_samples(label_at_front)
 
     except Exception as e:
       raise RuntimeError(f'Error loading dataset chunk from {chunk_loaction}: {e}')
@@ -99,9 +99,10 @@ class TabularData:
     np.savetxt(file_path, data_to_save, delimiter=',', fmt='%s')
     print(f'Successfully saved data to: {file_path}')
 
-  def get_samples(self):
+  def get_samples(self, label_at_front = False):
     if self.complete_X is None:
       raise ValueError("No data loaded yet. Call 'loading_chunk()' first.")
+    if label_at_front: return self.complete_X[:, 1:], make_num(self.complete_X[:, 0].flatten()).reshape(-1, 1)
     return self.complete_X[:, :-1], make_num(self.complete_X[:, -1].flatten()).reshape(-1, 1)
 
 

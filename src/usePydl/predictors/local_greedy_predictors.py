@@ -8,15 +8,15 @@ MAX_TIME = 20
 EPSILON = 1e-9
 
 
-def generate_pred(feature_history) -> LocalGreedyPredictor:
-    pred = LocalGreedyPredictor(feature_history)
+def generate_pred(feature_history, weights=None) -> LocalGreedyPredictor:
+    pred = LocalGreedyPredictor(feature_history, weights)
     return pred
 
 
 class LocalGreedyPredictor(Predictor):
-    def __init__(self,feature_history):
+    def __init__(self,feature_history,weights=None):
         print(f"Starting Greedy Predictor, samples:{feature_history.samples.shape}")
-        super().__init__(feature_history=feature_history, max_depth=2, min_sup=1, time=MAX_TIME)
+        super().__init__(feat_hist=feature_history,weights=weights, max_depth=2, min_sup=1, time=CONFIG.MAX_TIME_PREDICTOR)
         print(f"Finished Predictor, samples:{feature_history.samples.shape}")
 
 
@@ -25,22 +25,21 @@ def build_tree_iteratively(feature_history):
     feature_history.tree = root_predictor.tree
     future_to_leaf = {}
 
-    def submit_leaves(history, predictor_error, total_samples=None):
+    def submit_leaves(history):
+        print(f"Submitting leaves, depth:{history.depth}")
         for leaf in history.tree.get_leafs():
             sample_ids = leaf["value"].get("sample_ids", [])
-            leaf_error = leaf.get("error", 0)
 
-            if total_samples and len(sample_ids) == total_samples:
-                continue
-
-            if len(sample_ids) >= CONFIG.MIN_SAMPLES_IN_LEAF and (leaf_error - predictor_error) > EPSILON:
+            if len(sample_ids) >= CONFIG.MIN_SAMPLES_IN_LEAF:
                 sub_history = extend_history(history.samples[sample_ids], history, leaf["value"]["leaf_id"])
-                sub_history.creat_splits()
-                future = executor.submit(generate_pred, sub_history)
+                if sub_history.depth < 2: new_weights = sub_history.get_feature_weights(mode='uniform',focus_on_percentage=1)
+                else: new_weights = sub_history.get_feature_weights(mode='random',focus_on_percentage=1)
+                sub_history.creat_splits(weight_of_each_feature=new_weights)
+                future = executor.submit(generate_pred, sub_history, new_weights)
                 future_to_leaf[future] = sub_history
 
     with ProcessPoolExecutor(max_workers=6) as executor:
-        submit_leaves(feature_history, root_predictor.error, total_samples=feature_history.samples.shape[0])
+        submit_leaves(feature_history)
         while future_to_leaf:
             done, _ = wait(future_to_leaf.keys(), return_when=FIRST_COMPLETED)
 
@@ -53,8 +52,15 @@ def build_tree_iteratively(feature_history):
                     continue
 
                 current_history.tree = new_pred.tree
+                current_history.pred_error = new_pred.error
+                if current_history.past is not None:
+                    past_error = current_history.past.pred_error
+                else: past_error = np.inf
 
-                if current_history.depth < CONFIG.MAX_GREEDY_DEPTH:
-                    submit_leaves(current_history, new_pred.error)
+                if current_history.depth < CONFIG.MAX_GREEDY_DEPTH and (
+                        past_error == np.inf or
+                        past_error - new_pred.error > past_error/20):
+                    print(f'error reduction! : {past_error - new_pred.error}')
+                    submit_leaves(current_history)
 
     return root_predictor

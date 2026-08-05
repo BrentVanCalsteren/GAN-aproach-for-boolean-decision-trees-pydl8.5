@@ -2,14 +2,13 @@ import numpy as np
 from pyexpat import features
 
 import CONFIG
-from src.data.encoders.encoder_PCA import PCAEncoder
-from src.data.encoders.encoder_NN import NNencoder
+from src.data.preprocess.preprocessor import Processor
 
 class GlobalChunkInfo:
-    def __init__(self, loader):
+    def __init__(self, loader, labels_at_front=False):
         self.loader = loader
-        self.global_pca = None
-        self.global_nn = None
+        self.labels_at_front = labels_at_front
+        self.global_preprocessor: Processor = None
 
         self.feats_min_vals = None
         self.feats_max_vals = None
@@ -24,37 +23,44 @@ class GlobalChunkInfo:
         self.init_all_parameters()
 
     def init_all_parameters(self):
-        self.init_default_vals()
-
-        if CONFIG.ROTATE_DIM:
-            self.init_pca()
-            self.feature_importance = self.global_pca.get_explained_variance_ratio()
-
-        if CONFIG.REDUCE_FEAT is not None:
-            self.init_nn()
-            if CONFIG.REDUCE_FEAT is not None:
-                self.feature_importance = self.global_nn.get_explained_variance_ratio()
-
-
-
-
-
-    def init_default_vals(self):
+        preproces_done = []
         for i in range(self.loader.n_chunks):
-            chunk_samples, _ = self.loader.load_chunk(i)
+            chunk_samples, _ = self.loader.load_chunk(i, self.labels_at_front)
             chunk_samples = convert_samples_to_num(chunk_samples)
+            if self.global_preprocessor is None:
+                self.global_preprocessor = Processor(CONFIG.PREPROCESS_LIST, chunk_samples)
+            if len(self.global_preprocessor.processes) > 0:
+                self.global_preprocessor.processes[0].partial_fit(chunk_samples)
             self.total_number_samples += chunk_samples.shape[0]
             if self.feats_min_vals is None: self.feats_min_vals = np.full(chunk_samples.shape[1], np.inf)
             if self.feats_max_vals is None: self.feats_max_vals = np.full(chunk_samples.shape[1], -np.inf)
 
-            #update min-max values
+            # update min-max values
             for i in range(chunk_samples.shape[1]):
                 col = chunk_samples[:, i]
                 self.feats_min_vals[i] = min(self.feats_min_vals[i], float(np.min(col)))
                 self.feats_max_vals[i] = max(self.feats_max_vals[i], float(np.max(col)))
 
-            #update discrete
+            # update discrete
             self.update_discrete(chunk_samples)
+
+        if len(self.global_preprocessor.processes) > 0:
+            preproces_done.append(self.global_preprocessor.processes[0])
+        for i in range(1,len(self.global_preprocessor.processes)):
+            for j in range(self.loader.n_chunks):
+                chunk_samples, _ = self.loader.load_chunk(j, self.labels_at_front)
+                chunk_samples = convert_samples_to_num(chunk_samples)
+                for process in preproces_done:
+                    chunk_samples = process.transform(chunk_samples)
+                self.global_preprocessor.processes[i].partial_fit(chunk_samples)
+            preproces_done.append(self.global_preprocessor.processes[i])
+
+        try:
+            self.feature_importance = preproces_done[len(preproces_done)-1].get_explained_variance_ratio()
+        except:
+            print('tried getting feature importance, failed')
+
+
 
     def update_discrete(self, samples,discrete_percentile=5):
         if self.discrete_values is None: self.discrete_values = [[] for _ in range(samples.shape[1])]
@@ -68,49 +74,6 @@ class GlobalChunkInfo:
             else:
                 self.featureTypes[i] = 'continuous'
                 self.discrete_values[i] = []
-
-    def init_pca(self):
-        for i in range(self.loader.n_chunks):
-            chunked_samples, _ = self.loader.load_chunk(i)
-            if CONFIG.APPLY_SCALE: chunked_samples = self.scale_and_standardize_samples(chunked_samples)
-            if self.global_pca is None:
-                self.global_pca = PCAEncoder(output_dim=min(chunked_samples.shape[1], chunked_samples.shape[0]))
-            self.global_pca.partial_fit(chunked_samples)
-
-
-    def init_nn(self):
-        for i in range(self.loader.n_chunks):
-            chunked_samples, _ = self.loader.load_chunk(i)
-            if CONFIG.APPLY_SCALE: chunked_samples = self.scale_and_standardize_samples(chunked_samples)
-            if CONFIG.ROTATE_DIM: chunked_samples = self.global_pca.transform(chunked_samples)
-
-            if CONFIG.REDUCE_FEAT >= chunked_samples.shape[1]:
-                CONFIG.REDUCE_FEAT = None
-                return
-            if CONFIG.USE_NN:
-                if self.global_nn is None: self.global_nn = NNencoder(CONFIG.REDUCE_FEAT)
-            else:
-                if self.global_nn is None: self.global_nn = PCAEncoder(CONFIG.REDUCE_FEAT)
-            self.global_nn.partial_fit(chunked_samples)
-
-
-    def load_chunk_data(self, chunk_id):
-        return self.loader.load_chunk(chunk_id)
-
-
-    def scale_and_standardize_samples(self,samples):
-        num_feat = []
-        featurs = samples.T
-        for i,feat in enumerate(featurs):
-            num_feat.append(self.scale_and_standardize(feat, i))
-        return np.array(num_feat).T.astype(float)
-
-    def scale_and_standardize(self, raw_feature_data, feat_id):
-        num_arr = make_num(raw_feature_data)
-        min_val = self.feats_min_vals[feat_id]
-        max_val = self.feats_max_vals[feat_id]
-        if max_val - min_val == 0:    return np.zeros(len(num_arr))
-        return np.array((num_arr - min_val) / (max_val - min_val))
 
 
 def convert_samples_to_num(samples):

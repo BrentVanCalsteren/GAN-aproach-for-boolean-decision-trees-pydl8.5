@@ -1,9 +1,13 @@
 from typing import List
 
+import numpy as np
+
+
 class Intervals:
-    def __init__(self,feat_id, chunkinfo):
-        self.min_val = chunkinfo.processed_feat_min[feat_id]
-        self.max_val = chunkinfo.processed_feat_max[feat_id]
+    def __init__(self,feat_id, feat_hist):
+        feature = feat_hist.samples.T[feat_id]
+        self.min_val = np.min(feature)
+        self.max_val = np.max(feature)
         self.interval_list: List[Interval] = []
         self.generate_start_interval()
 

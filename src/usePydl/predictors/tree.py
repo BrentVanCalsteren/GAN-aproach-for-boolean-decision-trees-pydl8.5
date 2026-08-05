@@ -11,22 +11,16 @@ class Tree:
     def __init__(self, tree):
         self.tree : Dict = tree
 
-
     def get_leaf_id_for_sample(self, sample):
-        if sample is None or self.tree is None:
-            return None
-
-        sample_arr = np.asarray(sample)
-        if sample_arr.ndim == 2:
-            return np.array([self.get_leaf_id_for_sample(s) for s in sample_arr])
-
+        current_path = {}
         def traverse(node):
             if "value" in node:
-                return node["value"].get("leaf_id", 0)
+                leaf_id = node["value"].get("leaf_id", 0)
+                return leaf_id, current_path
 
             feat_id = int(node['feat'])
             split_val = node.get('split_val', '')
-            val = sample_arr[feat_id]
+            val = sample[feat_id]
 
             if isinstance(split_val, str):
                 vals = parse_values(split_val)
@@ -45,23 +39,44 @@ class Tree:
             else:
                 cond = (val <= float(split_val))
 
+            direction = 'L' if cond else 'R'
+            if feat_id not in current_path: current_path[feat_id] = ([], [])
+            current_path[feat_id][0].append(split_val)
+            current_path[feat_id][1].append(direction)
+
             if cond:
-                return traverse(node["left"]) if "left" in node else traverse(node["right"])
+                next_node = node["left"] if "left" in node else node["right"]
             else:
-                return traverse(node["right"]) if "right" in node else traverse(node["left"])
+                next_node = node["right"] if "right" in node else node["left"]
+
+            return traverse(next_node)
 
         return traverse(self.tree)
 
-    def check_tree_purity_with_samples(self, samples, labels):
-        if samples is None or labels is None or len(samples) == 0:
-            return 0.0, {}
+    def avg_features_used_each_path(self, n_features=None):
+        if n_features is None:
+            print("can't tell, don't know how many feat there are, n_feat is none")
+            return []
+        paths = self.get_all_paths()
+        n_paths = len(paths)
 
+        split_counts_sum = np.zeros(n_features, dtype=float)
+        for path_obj in paths:
+            p_dict = path_obj.get('path', {})
+            for feat_id, (splits_vals, directions) in p_dict.items():
+                feat_idx = int(feat_id)
+                if feat_idx < n_features:
+                    split_counts_sum[feat_idx] += len(splits_vals)
+        avg_counts = split_counts_sum / float(n_paths)
+        return avg_counts
+
+    def tree_label_distr_each_leaf(self, samples, labels):
         labels_arr = np.asarray(labels).flatten()
         samples_arr = np.asarray(samples)
         if samples_arr.ndim == 1:
             samples_arr = samples_arr.reshape(1, -1)
 
-        leaf_ids = self.get_leaf_id_for_sample(samples_arr)
+        leaf_ids, path = self.get_leaf_id_for_sample(samples_arr)
 
         leaf_label_map = {}
         for l_id, label in zip(leaf_ids, labels_arr):
@@ -90,8 +105,11 @@ class Tree:
             }
 
         avg_purity = total_purity_sum / n_leaves if n_leaves > 0 else 0.0
-        print(f"Average Leaf Purity: {avg_purity:.4f} across {n_leaves} non-empty leaves.")
+        print(f"leaf purtoy: {avg_purity} ")
         return avg_purity, leaf_purity_info
+
+
+
 
 
     def get_depth(self):
@@ -193,7 +211,7 @@ class Tree:
 def calc_intervals_of_path(path, feat_history):
     feat_interval_dic = {}
     for feature_id in range(len(feat_history.feature_info_list)):
-        intervals = Intervals(feat_id=feature_id, chunkinfo=feat_history.chunkInfo)
+        intervals = Intervals(feat_id=feature_id, feat_hist=feat_history)
         feat_interval_dic[feature_id] = add_intervals_for_feat(path.get(feature_id), intervals)
     return feat_interval_dic
 

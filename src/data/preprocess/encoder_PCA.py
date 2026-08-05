@@ -6,12 +6,13 @@ class PCAEncoder:
     def __init__(self, output_dim=None, batch_size=None):
         self.output_dim = output_dim
         self.batch_size = batch_size
-        self.pca = IncrementalPCA(n_components=output_dim, batch_size=batch_size)
+        self.pca = None
 
     def partial_fit(self, samples: np.ndarray) -> None:
         if samples.ndim > 2:
             print('!expects a 2d grid!')
             return
+        if self.pca is None: self.pca = IncrementalPCA(n_components=min(samples.shape[1], samples.shape[0]))
         self.pca.partial_fit(samples)
 
     def fit(self, samples: np.ndarray) -> None:
