@@ -42,7 +42,7 @@ def test_chunk_data_generation(dataset: str = 'bank', data_type: str = 'tabular'
 
         # Create boolean splits for current chunk
         feature_data = sample_obj.current_feat_hist
-        feature_data.creat_splits(total_num_splits=CONFIG.MAX_BOOL_SPLITS)
+        feature_data.creat_splits(total_num_splits=CONFIG.AVG_BOOL_SPLITS_EACH_FEATURE)
         chunk_splits = feature_data.get_splits()
 
         # Validate boolean mapping

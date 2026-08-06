@@ -5,9 +5,8 @@ import numpy as np
 
 class Intervals:
     def __init__(self,feat_id, feat_hist):
-        feature = feat_hist.samples.T[feat_id]
-        self.min_val = np.min(feature)
-        self.max_val = np.max(feature)
+        self.min_val = float(feat_hist.feat_min_vals[feat_id])
+        self.max_val = float(feat_hist.feat_max_vals[feat_id])
         self.interval_list: List[Interval] = []
         self.generate_start_interval()
 

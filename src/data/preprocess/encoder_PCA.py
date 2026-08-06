@@ -12,7 +12,11 @@ class PCAEncoder:
         if samples.ndim > 2:
             print('!expects a 2d grid!')
             return
-        if self.pca is None: self.pca = IncrementalPCA(n_components=min(samples.shape[1], samples.shape[0]))
+        if self.pca is None:
+            if self.output_dim is None:
+                self.pca = IncrementalPCA(n_components=min(samples.shape[1], samples.shape[0]))
+            else:
+                self.pca = IncrementalPCA(n_components=self.output_dim)
         self.pca.partial_fit(samples)
 
     def fit(self, samples: np.ndarray) -> None:

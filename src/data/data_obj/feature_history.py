@@ -1,7 +1,8 @@
 import copy
-from typing import List, Optional
+from typing import List, Any
 import numpy as np
 
+import CONFIG
 from data.data_obj.splits import Splits
 from usePydl.predictors.tree import Tree, remap_tree, extend_tree
 
@@ -23,14 +24,19 @@ def extend_history(new_samples, old_history: FeatureHistory, l_id):
 
 
 class FeatureHistory:
-    def __init__(self, samples, chunkInfo=None):
+    def __init__(self, samples, chunkInfo=None, stays_in_memory=False):
         self.feature_info_list = None
         self.chunkInfo = chunkInfo
         self.past = None
         self.future = []
 
+        self.stays_in_memory = stays_in_memory
+
         self.splits_obj: Splits = None
         self.samples = None
+        self.feat_min_vals = None
+        self.feat_max_vals = None
+        self.corr_matrix = None
 
         self.depth = 0
         self.tree:Tree = None
@@ -41,8 +47,27 @@ class FeatureHistory:
 
 
     def create_current_history(self, samples):
-        self.feature_info_list = [FeatureInfo(feat,feat_id, self.chunkInfo) for feat_id, feat in enumerate(samples.T)] #will auto scale each feature
-        self.samples = np.array([l.feature_array for l in self.feature_info_list]).T
+        self.feature_info_list = [0] * samples.shape[1]
+        self.samples = samples
+        if self.samples is not None and self.samples.size > 0:
+            self.feat_min_vals = np.min(self.samples, axis=0)
+            self.feat_max_vals = np.max(self.samples, axis=0)
+            self.corr_matrix = np.corrcoef(self.samples, rowvar=False)
+            np.nan_to_num(self.corr_matrix, copy=False, nan=0.0)
+        else:
+            self.feat_min_vals = np.array([])
+            self.feat_max_vals = np.array([])
+
+    def reduce_memory(self):
+        if self.stays_in_memory:
+            return
+        self.samples = None
+        self.splits_obj = None
+        if self.future:
+            for child in self.future:
+                child.reduce_memory()
+        self.past = None
+        self.future = []
 
     def set_past(self,history: FeatureHistory):
         self.past = history
@@ -62,53 +87,53 @@ class FeatureHistory:
         return self.samples
 
 
-    def creat_splits(self, total_num_splits=50, weight_of_each_feature=None):
+    def creat_splits(self, weight_of_each_feature=None):
         n_feats = len(self.feature_info_list)
+        total_num_splits = n_feats*CONFIG.AVG_BOOL_SPLITS_EACH_FEATURE
+        total_num_splits = CONFIG.MAX_SPLITS
         feat_splits_num = []
         if weight_of_each_feature is None:
             weight_of_each_feature = self.get_feature_weights()
 
         for i in range(n_feats):
-            w = weight_of_each_feature[i] if i < len(weight_of_each_feature) else (1.0 / float(n_feats))
+            w = weight_of_each_feature[i]
             a = max(1, int(total_num_splits * w))
             feat_splits_num.append(a)
 
-        self.splits_obj = Splits(max_splits_each_feature=feat_splits_num, samples=self.samples)
-        for feature_info in self.feature_info_list:
-            self.splits_obj.create_splits_from_feature(feature_info.feature_array, feature_info.feat_id)
+        self.splits_obj = Splits(max_splits_each_feature=feat_splits_num, samples=self.samples, weights=self.chunkInfo.feature_importance)
+        for i, _ in enumerate(self.feature_info_list):
+            self.splits_obj.create_splits_from_feature(self.samples.T[i,:], i)
 
-    def get_feature_weights(self, mode: str = 'uniform', focus_on_percentage: float = 0.5) -> np.ndarray:
+    def get_feature_weights(self, mode: str = 'uniform', focus_on=None):
         n_feats = len(self.feature_info_list)
-        if n_feats == 0:
-            return np.array([])
+        if n_feats == 0: return np.array([])
+
         if mode == 'random':
             weights = np.random.uniform(0.1, 1.0, size=n_feats)
         else:
-            if self.chunkInfo is not None and self.chunkInfo.feature_importance is not None:
-                raw_imp = np.asarray(self.chunkInfo.feature_importance).flatten()
-                if len(raw_imp) >= n_feats:
-                    weights = raw_imp[:n_feats].copy()
-                else:
-                    weights = np.ones(n_feats, dtype=float) / float(n_feats)
-                    weights[:len(raw_imp)] = raw_imp
-            else:
-                weights = np.ones(n_feats, dtype=float)
-        weights = np.maximum(0.0, np.asarray(weights, dtype=float))
-        sum_w = np.sum(weights)
-        if sum_w > 0:
-            weights /= sum_w
-        else:
-            weights = np.ones(n_feats, dtype=float) / float(n_feats)
+            if self.chunkInfo.feature_importance is not None:
+                weights = np.asarray(self.chunkInfo.feature_importance).flatten()
+            else:   weights = np.ones(n_feats, dtype=float)
 
-        if 0.0 < focus_on_percentage < 1.0:
-            k = max(1, int(np.ceil(n_feats * focus_on_percentage)))
-            top_k_indices = np.argsort(weights)[-k:]
+        sum_w = np.sum(weights)
+        if sum_w > 0: weights /= sum_w
+        else:  weights = np.ones(n_feats, dtype=float) / float(n_feats)
+
+        if focus_on is not None:
             mask = np.zeros(n_feats, dtype=bool)
-            mask[top_k_indices] = True
+            if isinstance(focus_on, float) and 0.0 <= focus_on <= 1.0:
+                k = max(1, int(np.ceil(n_feats * float(focus_on))))
+                top_k_indices = np.argsort(weights)[-k:]
+                mask[top_k_indices] = True
+            else:
+                valid_ids = [int(f) for f in focus_on if 0 <= int(f) < n_feats]
+                if len(valid_ids) > 0: mask[valid_ids] = True
+                else: mask[:] = True
+
             weights[~mask] = 0.0
             sum_top = np.sum(weights)
-            if sum_top > 0:
-                weights /= sum_top
+            if sum_top > 0: weights /= sum_top
+            elif np.any(mask): weights[mask] = 1.0 / float(np.sum(mask))
         return weights
 
     def get_splits(self):
@@ -140,12 +165,4 @@ class FeatureHistory:
                 else: print('no tree obj')
             futures = new_futures
         return Tree(tree=tree)
-
-
-class FeatureInfo:  # represents a single column of data
-    def __init__(self, feature_data: np.ndarray,feat_id, chunkInfo):
-        self.feat_id = feat_id
-        self.chunkInfo = chunkInfo
-        self.feature_array = feature_data
-        self.dependent_feat = []
 

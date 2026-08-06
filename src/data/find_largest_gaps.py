@@ -87,10 +87,12 @@ class DivisiveCluster:
         if self.distance_func is not None:
             return self.distance_func(a, b)
 
-        if isinstance(a, (int, float)) and isinstance(b, (int, float)):
+        try:
+            a = (float(a))
+            b = (float(b))
             return float(b - a)
-
-        raise TypeError(f"Cant calc gap {type(a).__name__} and {type(b).__name__}")
+        except ValueError:
+            raise TypeError(f"Cant calc gap {type(a).__name__} and {type(b).__name__}")
 
     def get_clusters(self) -> List[List[float]]:
         if self._root is None:

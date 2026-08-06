@@ -56,7 +56,8 @@ class GlobalChunkInfo:
             preproces_done.append(self.global_preprocessor.processes[i])
 
         try:
-            self.feature_importance = preproces_done[len(preproces_done)-1].get_explained_variance_ratio()
+            self.feature_importance = self.global_preprocessor.get_feature_importance()
+            print(f'feature_importance: {self.feature_importance}')
         except:
             print('tried getting feature importance, failed')
 

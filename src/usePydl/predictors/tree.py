@@ -15,14 +15,28 @@ class Tree:
         current_path = {}
         def traverse(node):
             if "value" in node:
-                leaf_id = node["value"].get("leaf_id", 0)
-                return leaf_id, current_path
+                leaf_id = node["value"].get("leaf_id", 0) if isinstance(node["value"], dict) else 0
+                error = float(node.get("error", 0.0))
+                rel_prob = float(node["value"].get("rel_prob", 1.0)) if isinstance(node["value"], dict) else 1.0
+                return leaf_id, current_path, error, rel_prob
 
-            feat_id = int(node['feat'])
+            feat_id = node['feat']
             split_val = node.get('split_val', '')
-            val = sample[feat_id]
 
-            if isinstance(split_val, str):
+            if isinstance(split_val, str) and 'lincomp' in split_val:
+                parts = split_val.split('_')
+                f1, f2 = int(parts[1]), int(parts[2])
+                w1, w2 = float(parts[3]), float(parts[4])
+                t = float(parts[6])
+                z = w1 * sample[f1] + w2 * sample[f2]
+                cond = (z >= t)
+                direction = 'L' if cond else 'R'
+                for f in (f1, f2):
+                    if f not in current_path: current_path[f] = ([], [])
+                    current_path[f][0].append(split_val)
+                    current_path[f][1].append(direction)
+            elif isinstance(split_val, str):
+                val = sample[int(feat_id)] if isinstance(feat_id, (int, float, str)) else sample[0]
                 vals = parse_values(split_val)
                 if not vals:
                     cond = True
@@ -36,13 +50,19 @@ class Tree:
                     cond = (vals[0] <= val <= vals[1])
                 else:
                     cond = (val <= vals[0])
+                direction = 'L' if cond else 'R'
+                f_idx = int(feat_id) if isinstance(feat_id, (int, float, str)) else 0
+                if f_idx not in current_path: current_path[f_idx] = ([], [])
+                current_path[f_idx][0].append(split_val)
+                current_path[f_idx][1].append(direction)
             else:
+                val = sample[int(feat_id)]
                 cond = (val <= float(split_val))
-
-            direction = 'L' if cond else 'R'
-            if feat_id not in current_path: current_path[feat_id] = ([], [])
-            current_path[feat_id][0].append(split_val)
-            current_path[feat_id][1].append(direction)
+                direction = 'L' if cond else 'R'
+                f_idx = int(feat_id)
+                if f_idx not in current_path: current_path[f_idx] = ([], [])
+                current_path[f_idx][0].append(split_val)
+                current_path[f_idx][1].append(direction)
 
             if cond:
                 next_node = node["left"] if "left" in node else node["right"]
@@ -169,6 +189,17 @@ class Tree:
             interval_path_dic[i] = calc_intervals_of_path(path['path'], feat_history)
         return interval_path_dic
 
+    def remove_sample_ids_from_leafs(self):
+        def recurse(node):
+            if "value" in node:
+                if isinstance(node["value"], dict):
+                    node["value"].pop("sample_ids", None)
+            else:
+                if "left" in node: recurse(node["left"])
+                if "right" in node: recurse(node["right"])
+        if self.tree is not None:
+            recurse(self.tree)
+
     def get_all_paths(self): #can be used after remapping tree
         all_paths = []
 
@@ -178,8 +209,8 @@ class Tree:
                 all_paths.append(
                     {'path': current_path,
                     'error': node.get('error', 0),
-                    'sample_ids': node['value']['sample_ids'],
-                    'rel_prob': node['value']['rel_prob']})
+                    'sample_ids': node['value'].get('sample_ids', []),
+                    'rel_prob': node['value'].get('rel_prob', 0.0)})
                 return
 
             feat_id = int(node['feat'])
@@ -235,6 +266,16 @@ def add_left_interval(value_str: str, intervals: Intervals):
     vals = parse_values(value_str)
     max_val = intervals.max_val
     min_val = intervals.min_val
+    if 'lincomp' in value_str:
+        parts = value_str.split('_')
+        w1, t = float(parts[3]), float(parts[6])
+        if abs(w1) > 1e-5:
+            bound = t / w1
+            if w1 > 0:
+                intervals.add_interval(bound, max_val, 'closed')
+            else:
+                intervals.add_interval(min_val, bound, 'closed')
+        return
     if not vals:
         return
     if 'bigger_eq' in value_str:
@@ -253,6 +294,16 @@ def add_right_interval(value_str: str, intervals: Intervals):
     vals = parse_values(value_str)
     max_val = intervals.max_val
     min_val = intervals.min_val
+    if 'lincomp' in value_str:
+        parts = value_str.split('_')
+        w1, t = float(parts[3]), float(parts[6])
+        if abs(w1) > 1e-5:
+            bound = t / w1
+            if w1 > 0:
+                intervals.add_interval(min_val, bound, 'half-closed')
+            else:
+                intervals.add_interval(bound, max_val, 'half-open')
+        return
     if not vals:
         return
     if 'bigger_eq' in value_str:

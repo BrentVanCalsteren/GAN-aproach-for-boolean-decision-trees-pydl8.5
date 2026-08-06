@@ -46,6 +46,13 @@ class Processor:
 
         return samples
 
+    def get_feature_importance(self):
+        for i in range(len(self.processes)-1,0,-1):
+            p = self.processes[i]
+            if isinstance(p, NNencoder) or isinstance(p, PCAEncoder):
+                return p.get_explained_variance_ratio()
+        return None
+
 
 
 

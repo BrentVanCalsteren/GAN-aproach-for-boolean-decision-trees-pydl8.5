@@ -5,16 +5,17 @@ from typing import List, Optional, Tuple
 import numpy as np
 import pandas as pd
 from PIL import Image
+import CONFIG
 
 valid_extensions = ['.png', '.jpg', '.jpeg', '.bmp']
 
 
 class ImageData:
 
-  def __init__(self, file_path: str | Path, chunk_size: int = 500, n_max_each_class: Optional[int] = None, seed: Optional[int] = 42):
+  def __init__(self, file_path: str | Path, n_max_each_class: Optional[int] = None, seed: Optional[int] = 42):
 
     self.file_path = Path(file_path)
-    self.chunk_size = chunk_size
+    self.chunk_size = CONFIG.CHUNK_SIZE
     self.n_max_each_class = n_max_each_class
     self.seed = seed
     self.X: Optional[np.ndarray] = None
@@ -31,14 +32,27 @@ class ImageData:
     if not self.file_path.exists():
       raise FileNotFoundError(f'Directory {self.file_path} does not exist.')
 
+    parent_dir = self.file_path.parent
+    stem = self.file_path.name
+
+    # Check if chunks are already saved on PC
+    existing_chunks = [p for p in parent_dir.glob(f'{stem}_chunk_*.csv') if p.is_file()]
+    if existing_chunks:
+      import re
+      existing_chunks.sort(
+        key=lambda p: int(re.search(r'_chunk_(\d+)', p.name).group(1)) if re.search(r'_chunk_(\d+)', p.name) else 0)
+      self.chunk_files = existing_chunks
+      self.n_chunks = len(existing_chunks)
+      print(
+        f"Found {self.n_chunks} pre-existing chunk manifests for '{stem}' in {parent_dir}. Skipping chunk creation.")
+      return self.chunk_files
+
     class_folders = [f for f in self.file_path.iterdir() if f.is_dir()]
     class_folders.sort()
     if not class_folders:
       raise ValueError(f'No class subdirectories found in {self.file_path}')
 
-    self.class_to_idx = {
-        folder.name: idx for idx, folder in enumerate(class_folders)
-    }
+    self.class_to_idx = {folder.name: idx for idx, folder in enumerate(class_folders)}
 
     all_samples = []
     for folder in class_folders:
@@ -73,16 +87,16 @@ class ImageData:
     self.n_chunks = int(np.ceil(total_samples / self.chunk_size))
 
     for i in range(self.n_chunks):
-      chunk_samples = all_samples[i * self.chunk_size : (i + 1) * self.chunk_size]
+      chunk_samples = all_samples[i * self.chunk_size: (i + 1) * self.chunk_size]
       chunk_path = parent_dir / f'{stem}_chunk_{i + 1}.csv'
       pd.DataFrame(chunk_samples, columns=['image_path', 'label']).to_csv(chunk_path, index=False)
       self.chunk_files.append(chunk_path)
 
     print(f'Dataset contained {total_samples} images. Created {self.n_chunks}'
-        f' chunk manifests in: {parent_dir}')
+          f' chunk manifests in: {parent_dir}')
     return self.chunk_files
 
-  def load_chunk(self, chunk_num: int = 0, label_at_front=False) -> Tuple[np.ndarray, np.ndarray]:
+  def load_chunk(self, chunk_num: int = 0, label_at_front=False, balanced=True):
     chunk_loaction = self.chunk_files[chunk_num]
 
     try:
@@ -126,7 +140,7 @@ class ImageData:
           f'Loaded chunk {chunk_num}/{self.n_chunks}'
           f' ({chunk_loaction.name}): {self.X.shape[0]} samples loaded.'
       )
-      return self.get_samples()
+      return self.get_samples(balanced)
 
     except Exception as e:
       raise RuntimeError(
@@ -163,5 +177,27 @@ class ImageData:
       img_pil.save(file_path)
       print(f'Success! Image saved to: {file_path}')
 
-  def get_samples(self) -> Tuple[np.ndarray, np.ndarray]:
-    return self.image_arr_to_tabular(), self.Y
+  def get_samples(self, balanced=False):
+      if balanced:
+        return balance_samples(self.image_arr_to_tabular(), self.Y)
+      return self.image_arr_to_tabular(), self.Y
+
+def balance_samples(samples: np.ndarray, labels: np.ndarray):
+    if labels is None or labels.size == 0: return samples, labels
+    labels = labels.flatten()
+    uniques, counts = np.unique(labels, return_counts=True)
+    if len(uniques) <= 1: return samples, labels
+
+    max_count = np.max(counts)
+    samples_bals = []
+    labels_bals = []
+    for cls in uniques:
+      ids = np.where(labels == cls)[0]
+      resampled_ids = np.random.choice(ids, size=max_count, replace=True)
+      samples_bals.append(samples[resampled_ids])
+      labels_bals.append(labels[resampled_ids])
+
+    s_balanced = np.vstack(samples_bals)
+    l_balanced = np.concatenate(labels_bals).reshape(-1, 1)
+    perm = np.random.permutation(len(l_balanced))
+    return s_balanced[perm], l_balanced[perm]

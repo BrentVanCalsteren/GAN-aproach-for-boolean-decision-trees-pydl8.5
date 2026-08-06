@@ -9,6 +9,7 @@ from src.samplers.uniform import UniformSampler
 from src.samplers.single_gaussian import SingleGaussian1DSampler
 from src.samplers.multivariate_gaussian import MultivariateGaussianSampler
 import CONFIG
+from usePydl.error_fun import CombinedMSEIntervalError
 
 from usePydl.predictors.tree import Tree, remap_tree
 

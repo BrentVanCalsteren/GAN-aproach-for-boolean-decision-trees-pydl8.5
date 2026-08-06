@@ -20,7 +20,7 @@ class LocalGreedyPredictor(Predictor):
         print(f"Finished Predictor, samples:{feature_history.samples.shape}")
 
 
-def build_tree_iteratively(feature_history):
+def build_tree_iteratively(feature_history, weights=None, n_worksers=10):
     root_predictor = LocalGreedyPredictor(feature_history)
     feature_history.tree = root_predictor.tree
     future_to_leaf = {}
@@ -32,13 +32,15 @@ def build_tree_iteratively(feature_history):
 
             if len(sample_ids) >= CONFIG.MIN_SAMPLES_IN_LEAF:
                 sub_history = extend_history(history.samples[sample_ids], history, leaf["value"]["leaf_id"])
-                if sub_history.depth < 2: new_weights = sub_history.get_feature_weights(mode='uniform',focus_on_percentage=1)
-                else: new_weights = sub_history.get_feature_weights(mode='random',focus_on_percentage=1)
+                if weights is None:
+                    if sub_history.depth < 2: new_weights = sub_history.get_feature_weights(mode='uniform',focus_on=1.0)
+                    else: new_weights = sub_history.get_feature_weights(mode='random',focus_on=1.0)
+                else: new_weights = weights
                 sub_history.creat_splits(weight_of_each_feature=new_weights)
                 future = executor.submit(generate_pred, sub_history, new_weights)
                 future_to_leaf[future] = sub_history
 
-    with ProcessPoolExecutor(max_workers=6) as executor:
+    with ProcessPoolExecutor(max_workers=n_worksers) as executor:
         submit_leaves(feature_history)
         while future_to_leaf:
             done, _ = wait(future_to_leaf.keys(), return_when=FIRST_COMPLETED)
@@ -59,7 +61,7 @@ def build_tree_iteratively(feature_history):
 
                 if current_history.depth < CONFIG.MAX_GREEDY_DEPTH and (
                         past_error == np.inf or
-                        past_error - new_pred.error > past_error/20):
+                        (past_error - new_pred.error) > past_error/100):
                     print(f'error reduction! : {past_error - new_pred.error}')
                     submit_leaves(current_history)
 

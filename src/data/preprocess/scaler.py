@@ -61,6 +61,8 @@ class Scaler:
         if samples_arr.ndim == 1:
             samples_arr = samples_arr.reshape(1, -1)
 
+        samples_arr = np.clip(samples_arr, 0.0, 1.0)
+
         if self.min_vals.size != samples_arr.shape[1]:
             print(f"mismatch, expected {self.min_vals.size}, got {samples_arr.shape[1]}")
             return samples

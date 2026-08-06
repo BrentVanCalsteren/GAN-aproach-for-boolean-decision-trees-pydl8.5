@@ -1,13 +1,12 @@
-import random
+import gc
 
 import numpy as np
 from sklearn.model_selection import train_test_split
 
-import CONFIG
-
 from data.data_loader.dataLoader import load_dataloader_by_name
 from data.data_obj.chunk_info import GlobalChunkInfo
 from data.data_obj.feature_history import FeatureHistory
+from collections import Counter
 
 class Samples:
     def __init__(self, dataset: str = 'iris', data_type='tabular', labels_at_front=False):
@@ -33,9 +32,10 @@ class Samples:
 
 
     def load_chunk(self, chunk_id, split_test=0.0):
+        self.remove_memory()
         self.active_chunk = chunk_id
-        self.current_feat_hist = None
         samples, lables = self.loader.load_chunk(chunk_id, self.labels_at_front)
+        samples = convert_samples_to_num(samples)
         samples_train, samples_test, labels_train, labels_test = train_test(samples=samples, labels=lables, test_size=split_test)
         self.samples = self.pre_process_samples(samples=samples_train)
         self.save_feature_history(samples=self.samples)
@@ -43,27 +43,30 @@ class Samples:
         self.labels = labels_train
         self.labels_test = labels_test
 
+    def remove_memory(self):
+        if self.current_feat_hist is not None:
+            self.current_feat_hist.reduce_memory()
+        self.current_feat_hist = None
+        self.samples = np.array([])
+        self.samples_test = np.array([])
+        gc.collect()
 
-    def get_best_matching_label(self, samples, chunk_id=None):
-        if chunk_id is not None and chunk_id != self.active_chunk:
-            self.load_chunk(chunk_id)
-        known_labels = self.labels.flatten()
-        if len(known_labels) == 0 or self.samples.size == 0:
-            raise ValueError("No reference samples or labels available in Samples object.")
-        if self.chunk_info.feature_importance is not None:
-            weights = np.asarray(self.chunk_info.feature_importance, dtype=float)
-            if weights.shape[0] == samples.shape[1]:
-                weights_sqrt = np.sqrt(np.maximum(weights, 0.0))
-                diff = (samples[:, np.newaxis, :] - self.samples[np.newaxis, :, :]) * weights_sqrt
-                distances = np.linalg.norm(diff, axis=2)
-            else:
-                diff = samples[:, np.newaxis, :] - self.samples[np.newaxis, :, :]
-                distances = np.linalg.norm(diff, axis=2)
-        else:
-            diff = samples[:, np.newaxis, :] - self.samples[np.newaxis, :, :]
-            distances = np.linalg.norm(diff, axis=2)
-        closest_indices = np.argmin(distances, axis=1)
-        return known_labels[closest_indices]
+    def get_best_matching_labels(self, gen_samples: np.ndarray,chunk_id=0,k= 5):
+        self.load_chunk(chunk_id)
+        labels_flat = np.asarray(self.labels).flatten()
+        real_samples = self.samples
+        weights = self.chunk_info.feature_importance
+        gen_labels = []
+        for i, sample in enumerate(gen_samples):
+            diff = np.abs(real_samples - sample)
+            if weights is not None: diff = diff * weights
+            distances = np.sum(diff, axis=1)
+            best_ids = np.argpartition(distances, k)[:k]
+            best_ids = best_ids[np.argsort(distances[best_ids])]
+            possible_labels = labels_flat[best_ids]
+            most_common_label = Counter(possible_labels).most_common(1)[0][0]
+            gen_labels.append(most_common_label)
+        return np.array(gen_labels)
 
     def save_feature_history(self, samples = None):
         if samples is None: samples = self.samples
@@ -101,3 +104,21 @@ def train_test(samples, labels, test_size=0.2):
     if test_size == 0.0: return samples, samples[:0], labels, labels[:0]
     if test_size == 1.0: return samples[:0], samples, labels[:0], labels
     return train_test_split(samples, labels, test_size=test_size, random_state=42)
+
+def convert_samples_to_num(samples):
+    num_feat = []
+    featurs = samples.T
+    for i, feat in enumerate(featurs):
+        num_feat.append(make_num(feat))
+    return np.array(num_feat).T.astype(float)
+
+
+def make_num(raw_feature_data):
+    try:
+        num_arr = np.asarray(raw_feature_data, dtype=float)
+    except (ValueError, TypeError):
+        unique_values = np.unique(raw_feature_data)
+        indexes = {val: idx for idx, val in enumerate(unique_values)}
+        num_arr = np.array([indexes[val] for val in raw_feature_data]).astype(float)
+        # maybe store the original strings? but would never need them (always want it to be numbers)
+    return num_arr

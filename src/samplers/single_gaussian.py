@@ -35,3 +35,17 @@ class SingleGaussian1DSampler(Sampler):
         candidates = self.sample(n_samples=n)
         ll = self.score_feature(candidates)
         return candidates[np.argsort(-ll)]
+
+    def sample_with_confidence(self, n_samples: int = 1, conf_thresh: float = 0.8, max_attempts: int = 100) -> np.ndarray:
+        accepted_samples = []
+        attempts = 0
+        batch_size = max(n_samples * 4, 50)
+        while len(accepted_samples) < n_samples and attempts < max_attempts:
+            candidates = self.sample(n_samples=batch_size)
+            scores = self.score_feature(candidates)
+            valid = candidates[scores >= conf_thresh]
+            accepted_samples.extend(valid)
+            attempts += 1
+        if len(accepted_samples) >= n_samples:
+            return np.array(accepted_samples[:n_samples])
+        return self.sorted_samples(n=n_samples) #if cant find candidates

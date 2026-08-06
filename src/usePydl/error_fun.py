@@ -2,6 +2,26 @@ import numpy as np
 from scipy.spatial.distance import pdist
 #continue errors
 
+
+class CombinedMSEIntervalError:
+    def __init__(self, samples: np.ndarray, feature_weights=None, mse_weight: float = 0.6, interval_weight: float = 0.4):
+        self.samples = samples
+        self.mse_weight = mse_weight
+        self.interval_weight = interval_weight
+        self.interval_err = IntervalSizesError(samples, feature_weights)
+        self.mse_err = MSEError(samples, feature_weights)
+        #normalization
+        all_ids = np.arange(samples.shape[0], dtype=np.intc)
+        self.root_interval = max(1e-5, float(self.interval_err(all_ids)))
+        self.root_mse = max(1e-5, float(self.mse_err(all_ids)))
+    def __call__(self, tids):
+        indices = np.fromiter(tids, dtype=np.intc)
+        if len(indices) < 2:
+            return 10e6
+        norm_i = self.interval_err(indices) / self.root_interval
+        norm_m = self.mse_err(indices) / self.root_mse
+        return (self.interval_weight * norm_i) + (self.mse_weight * norm_m)
+
 #dense bounding boxes
 class IntervalSizesError:
     def __init__(self, samples, feature_weights=None):
