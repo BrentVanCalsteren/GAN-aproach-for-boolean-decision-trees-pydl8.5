@@ -8,20 +8,20 @@ MAX_TIME = 20
 EPSILON = 1e-9
 
 
-def generate_pred(feature_history, weights=None) -> LocalGreedyPredictor:
-    pred = LocalGreedyPredictor(feature_history, weights)
+def generate_pred(feature_history, weights=None) -> GreedyDeepeningPredictor:
+    pred = GreedyDeepeningPredictor(feature_history, weights)
     return pred
 
 
-class LocalGreedyPredictor(Predictor):
+class GreedyDeepeningPredictor(Predictor):
     def __init__(self,feature_history,weights=None):
         print(f"Starting Greedy Predictor, samples:{feature_history.samples.shape}")
-        super().__init__(feat_hist=feature_history,weights=weights, max_depth=2, min_sup=1, time=CONFIG.MAX_TIME_PREDICTOR)
+        super().__init__(feat_hist=feature_history,weights=weights, max_depth=3, min_sup=1, time=CONFIG.MAX_TIME_PREDICTOR)
         print(f"Finished Predictor, samples:{feature_history.samples.shape}")
 
 
 def build_tree_iteratively(feature_history, weights=None, n_worksers=10):
-    root_predictor = LocalGreedyPredictor(feature_history)
+    root_predictor = GreedyDeepeningPredictor(feature_history)
     feature_history.tree = root_predictor.tree
     future_to_leaf = {}
 
@@ -59,7 +59,7 @@ def build_tree_iteratively(feature_history, weights=None, n_worksers=10):
                     past_error = current_history.past.pred_error
                 else: past_error = np.inf
 
-                if current_history.depth < CONFIG.MAX_GREEDY_DEPTH and (
+                if current_history.depth < CONFIG.MAX_GREED_ITERATIONS and (
                         past_error == np.inf or
                         (past_error - new_pred.error) > past_error/100):
                     print(f'error reduction! : {past_error - new_pred.error}')

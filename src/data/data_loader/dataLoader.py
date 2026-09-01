@@ -1,4 +1,7 @@
 from pathlib import Path
+
+import CONFIG
+from chunk_info import GlobalChunkInfo
 from data.data_loader.image_data import ImageData
 from data.data_loader.tabular_data import TabularData
 
@@ -19,11 +22,13 @@ def load_dataloader_by_name(dataset_name: str, main_dir: str = 'GAN-aproach-for-
             if candidate.exists():
                 print(f"Loading dataset from: {candidate}")
                 loader = TabularData(candidate)
-                return loader
     elif data_type == 'image':
             folder = base_path / dataset_name
             loader = ImageData(folder)
-            return loader
+
+    if loader is not None:
+        CONFIG.GLOBAL_CHUNK_INFO = GlobalChunkInfo(loader=loader, labels_at_front=False)
+        return loader
     raise FileNotFoundError(f"Dataset '{dataset_name}' not found in {base_path}")
 
 

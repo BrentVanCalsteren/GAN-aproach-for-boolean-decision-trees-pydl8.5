@@ -6,7 +6,7 @@ from pydl85 import DL85Classifier
 
 import CONFIG
 from data.data_obj.sampels import Samples
-from src.usePydl.predictors.local_greedy_predictors import build_tree_iteratively
+from src.usePydl.predictors.greedy_deepening_predictor import build_tree_iteratively
 
 DO_CLASSIFICATION = True
 

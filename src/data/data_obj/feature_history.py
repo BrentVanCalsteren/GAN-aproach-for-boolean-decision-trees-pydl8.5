@@ -1,12 +1,11 @@
 import copy
-from typing import List, Any
+
+import math
 import numpy as np
 
 import CONFIG
-from data.data_obj.splits import Splits
-from usePydl.predictors.tree import Tree, remap_tree, extend_tree
-
-DESCRETE_PERCENTILE = 5
+from splits.splits import Splits
+from usePydl.predictors.helpers.tree import Tree, remap_tree, extend_tree
 
 
 def create_new_history(samples):
@@ -24,20 +23,15 @@ def extend_history(new_samples, old_history: FeatureHistory, l_id):
 
 
 class FeatureHistory:
-    def __init__(self, samples, chunkInfo=None, stays_in_memory=False):
-        self.feature_info_list = None
-        self.chunkInfo = chunkInfo
+    def __init__(self, samples, stays_in_memory=False):
         self.past = None
         self.future = []
 
         self.stays_in_memory = stays_in_memory
-
         self.splits_obj: Splits = None
         self.samples = None
         self.feat_min_vals = None
         self.feat_max_vals = None
-        self.corr_matrix = None
-
         self.depth = 0
         self.tree:Tree = None
         self.leaf_id = None
@@ -47,13 +41,10 @@ class FeatureHistory:
 
 
     def create_current_history(self, samples):
-        self.feature_info_list = [0] * samples.shape[1]
         self.samples = samples
         if self.samples is not None and self.samples.size > 0:
             self.feat_min_vals = np.min(self.samples, axis=0)
             self.feat_max_vals = np.max(self.samples, axis=0)
-            self.corr_matrix = np.corrcoef(self.samples, rowvar=False)
-            np.nan_to_num(self.corr_matrix, copy=False, nan=0.0)
         else:
             self.feat_min_vals = np.array([])
             self.feat_max_vals = np.array([])
@@ -88,31 +79,29 @@ class FeatureHistory:
 
 
     def creat_splits(self, weight_of_each_feature=None):
-        n_feats = len(self.feature_info_list)
-        total_num_splits = n_feats*CONFIG.AVG_BOOL_SPLITS_EACH_FEATURE
-        total_num_splits = CONFIG.MAX_SPLITS
+        n_feats = self.samples.shape[1]
+        CONFIG.MAX_SPLITS = n_feats*CONFIG.AVG_BOOL_SPLITS_EACH_FEATURE
         feat_splits_num = []
         if weight_of_each_feature is None:
             weight_of_each_feature = self.get_feature_weights()
 
         for i in range(n_feats):
             w = weight_of_each_feature[i]
-            a = max(1, int(total_num_splits * w))
-            feat_splits_num.append(a)
+            splits = max(math.ceil(CONFIG.AVG_BOOL_SPLITS_EACH_FEATURE), int(CONFIG.MAX_SPLITS * w))
+            feat_splits_num.append(splits)
 
-        self.splits_obj = Splits(max_splits_each_feature=feat_splits_num, samples=self.samples, weights=self.chunkInfo.feature_importance)
-        for i, _ in enumerate(self.feature_info_list):
-            self.splits_obj.create_splits_from_feature(self.samples.T[i,:], i)
+        features = self.samples.T
+        self.splits_obj = Splits(features=features, max_splits_each_feature=feat_splits_num, weights_each_feature=CONFIG.GLOBAL_CHUNK_INFO.feature_importance)
 
     def get_feature_weights(self, mode: str = 'uniform', focus_on=None):
-        n_feats = len(self.feature_info_list)
+        n_feats = self.samples.shape[1]
         if n_feats == 0: return np.array([])
 
         if mode == 'random':
             weights = np.random.uniform(0.1, 1.0, size=n_feats)
         else:
-            if self.chunkInfo.feature_importance is not None:
-                weights = np.asarray(self.chunkInfo.feature_importance).flatten()
+            if CONFIG.GLOBAL_CHUNK_INFO.feature_importance is not None:
+                weights = np.asarray(CONFIG.GLOBAL_CHUNK_INFO.feature_importance).flatten()
             else:   weights = np.ones(n_feats, dtype=float)
 
         sum_w = np.sum(weights)
@@ -137,12 +126,11 @@ class FeatureHistory:
         return weights
 
     def get_splits(self):
-        return self.splits_obj.get_splits()
+        return self.splits_obj.get_splits_array()
 
     def get_feat_split_result(self, bool_feat_id: int):
-        real_feat = self.splits_obj.feature_index_array[bool_feat_id]
-        value = self.splits_obj.values[bool_feat_id]
-        return real_feat, value
+        t,v,f,s = self.splits_obj.get_data_on_split_id(bool_feat_id) #['types', 'values', 'feats', 'splits']
+        return t,v,f,s
 
     def get_local_tree(self):
         return self.tree

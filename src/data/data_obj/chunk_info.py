@@ -20,12 +20,15 @@ class GlobalChunkInfo:
         self.discrete_values = None
         self.total_number_samples = 0
 
+        self.corr_matrix = None
+        self.class_corrs = {}
+
         self.init_all_parameters()
 
     def init_all_parameters(self):
         preproces_done = []
         for i in range(self.loader.n_chunks):
-            chunk_samples, _ = self.loader.load_chunk(i, self.labels_at_front)
+            chunk_samples, labels = self.loader.load_chunk(i, self.labels_at_front)
             chunk_samples = convert_samples_to_num(chunk_samples)
             if self.global_preprocessor is None:
                 self.global_preprocessor = Processor(CONFIG.PREPROCESS_LIST, chunk_samples)
@@ -55,12 +58,26 @@ class GlobalChunkInfo:
                 self.global_preprocessor.processes[i].partial_fit(chunk_samples)
             preproces_done.append(self.global_preprocessor.processes[i])
 
+
+
         try:
+            # Compute min/max bounds in preprocessed feature space
+            for j in range(self.loader.n_chunks):
+                chunk_samples, _ = self.loader.load_chunk(j, self.labels_at_front)
+                chunk_samples = convert_samples_to_num(chunk_samples)
+                p_samples = self.global_preprocessor.preprocess(chunk_samples)
+                if self.processed_feat_min is None:
+                    self.processed_feat_min = np.min(p_samples, axis=0)
+                    self.processed_feat_max = np.max(p_samples, axis=0)
+                else:
+                    self.processed_feat_min = np.minimum(self.processed_feat_min, np.min(p_samples, axis=0))
+                    self.processed_feat_max = np.maximum(self.processed_feat_max, np.max(p_samples, axis=0))
+
             self.feature_importance = self.global_preprocessor.get_feature_importance()
+
             print(f'feature_importance: {self.feature_importance}')
         except:
             print('tried getting feature importance, failed')
-
 
 
     def update_discrete(self, samples,discrete_percentile=5):

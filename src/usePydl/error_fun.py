@@ -1,5 +1,6 @@
 import numpy as np
 from scipy.spatial.distance import pdist
+from sklearn.cluster import KMeans
 #continue errors
 
 
@@ -21,6 +22,38 @@ class CombinedMSEIntervalError:
         norm_i = self.interval_err(indices) / self.root_interval
         norm_m = self.mse_err(indices) / self.root_mse
         return (self.interval_weight * norm_i) + (self.mse_weight * norm_m)
+
+
+class ClusterCoherenceError:
+    def __init__(self, samples, feature_weights=None, random_state=None):
+        samples = np.asarray(samples, dtype=np.float64)
+        if feature_weights is not None:
+            weights = np.sqrt(np.asarray(feature_weights, dtype=np.float64))
+            self.samples = samples * weights
+        else:
+            self.samples = samples
+
+        self.rng = np.random.default_rng(random_state)
+
+    def __call__(self, tids):
+        sub_samples = self.samples[tids]
+        n_samples = sub_samples.shape[0]
+
+        if n_samples < 2:
+            return 1e7
+
+        # Pick 1 random sample as the first centroid
+        rand_idx = self.rng.integers(0, n_samples)
+        c1 = sub_samples[rand_idx]
+
+        # Find the sample furthest away from c1 as the second centroid
+        diff1 = sub_samples - c1
+        dist_sq1 = np.einsum('ij,ij->i', diff1, diff1)  # Faster than np.sum(diff1**2, axis=1)
+        max_idx = np.argmax(dist_sq1)
+        # Return the Euclidean distance (which equals the weighted distance)
+        return float(np.sqrt(dist_sq1[max_idx]))
+
+
 
 #dense bounding boxes
 class IntervalSizesError:

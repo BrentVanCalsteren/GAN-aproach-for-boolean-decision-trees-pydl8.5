@@ -1,4 +1,4 @@
-from src.usePydl.predictors.local_greedy_predictors import build_tree_iteratively
+from src.usePydl.predictors.greedy_deepening_predictor import build_tree_iteratively
 from data.data_obj.sampels import Samples
 import numpy as np
 from pydl85 import DL85Classifier
@@ -6,9 +6,9 @@ from src.usePydl.classifier.ensemble_classifier import EnsembleClassifier
 from sklearn.metrics import accuracy_score, classification_report
 from usePydl.predictors.random_forest_predictor import RandomForestPredictor
 
-DO_CLASSIFICATION = False
+DO_CLASSIFICATION = True
 def test_data_generation():
-    sample_obj = Samples(dataset='mnist_jpeg',data_type='image',labels_at_front=False)
+    sample_obj = Samples(dataset='bank',data_type='tabular',labels_at_front=False)
     sample_obj.load_chunk(chunk_id=0,split_test=0.2)
     samples_train = sample_obj.samples
     samples_test = sample_obj.samples_test
@@ -20,10 +20,10 @@ def test_data_generation():
     feature_data.stays_in_memory = True
     feature_data.creat_splits()
     # test image convertion
-    train_splits = feature_data.get_splits()
-    same_splits = feature_data.splits_obj.map_samples_to_splits(samples=samples_train)
+    train_splits = feature_data.get_splits().T
+    same_splits = feature_data.splits_obj.map_samples_to_splits(samples=samples_train).T
     print(f'bool convertion works correctly: {np.equal(train_splits, same_splits).all()}')
-    test_splits = feature_data.splits_obj.map_samples_to_splits(samples=samples_test)
+    test_splits = feature_data.splits_obj.map_samples_to_splits(samples=samples_test).T
 
     #=========================================
     #now let's test the quality of the splits, good splits will result into good classification with dlclassifier
@@ -34,8 +34,8 @@ def test_data_generation():
     #now let's generate new data
 
     #pred = build_tree_iteratively(feature_data)
-    pred = RandomForestPredictor(sample_obj, max_features_per_tree=2)
-    samples_gen = pred.gen_new_data(n=200, conf=0.5)
+    pred = RandomForestPredictor(sample_obj, max_features_per_tree=10)
+    samples_gen = pred.gen_new_data(n=200, conf=1)
     #pred = Predictor(samples=samples,splits=splits,max_depth=3,min_sup=1,time=100,n_samples=samples.shape[0])
     #samples_gen = pred.gen_new_data(split_obj=splits_obj, n=150, conf=0.8)
     #=================================================

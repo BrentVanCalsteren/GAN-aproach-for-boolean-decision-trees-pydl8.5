@@ -4,7 +4,7 @@ from typing import List, Dict, Optional, Tuple
 
 import CONFIG
 from src.data.data_obj.feature_history import FeatureHistory, extend_history
-from src.usePydl.predictors.local_greedy_predictors import build_tree_iteratively, LocalGreedyPredictor
+from src.usePydl.predictors.greedy_deepening_predictor import build_tree_iteratively, GreedyDeepeningPredictor
 from src.usePydl.predictors.predictor import Predictor
 
 

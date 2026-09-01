@@ -9,8 +9,7 @@ class Processor:
     def __init__(self, process_list,samples=None):
         self.processes = []
         for p in process_list:
-            if isinstance(p, str):
-                self.add_process(p)
+            if isinstance(p, str): self.add_process(p)
             if isinstance(p, list):
                 if samples is not None:
                     if samples.shape[1] <= CONFIG.REDUCE_FEAT: continue
@@ -18,10 +17,8 @@ class Processor:
 
 
     def add_process(self, process_str: str, extra_info: str = None):
-        if process_str == "scale":
-            self.processes.append(Scaler())
-        elif process_str == "rotate_dim":
-            self.processes.append(PCAEncoder())
+        if process_str == "scale": self.processes.append(Scaler())
+        elif process_str == "rotate_dim": self.processes.append(PCAEncoder())
         elif process_str == "reduce_feat":
             if extra_info == "pca":
                 self.processes.append(PCAEncoder(output_dim=CONFIG.REDUCE_FEAT))
