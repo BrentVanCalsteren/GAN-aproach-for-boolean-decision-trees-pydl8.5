@@ -31,10 +31,7 @@ class Splits:
         return np.array(self.splits_dic['splits'])
 
     def get_data_on_split_id(self, bool_feat_id):
-        data = []
-        for key in KEYS:
-            data.append(self.splits_dic[key][bool_feat_id])
-        return data
+        return self.splits_dic['types'][bool_feat_id]
 
 
     def create_best_splits(self, features):
@@ -98,7 +95,7 @@ class Splits:
 
         cluster_score = cluster_score()
 
-        return 0.5*cluster_score + 0.15*gini_score + 0.5*inter_scores + 0.35*mse_score
+        return 0.5*cluster_score + 0.1*gini_score + 0.3*inter_scores + 0.2*mse_score
 
 
     def map_samples_to_splits(self, samples):

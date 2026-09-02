@@ -13,7 +13,7 @@ def create_new_history(samples):
     return feat_history
 
 def extend_history(new_samples, old_history: FeatureHistory, l_id):
-    new_history = FeatureHistory(samples=new_samples, chunkInfo=old_history.chunkInfo)
+    new_history = FeatureHistory(samples=new_samples)
     old_history.add_future(new_history)
     new_history.set_past(old_history)
     new_history.leaf_id = l_id
@@ -125,12 +125,11 @@ class FeatureHistory:
             elif np.any(mask): weights[mask] = 1.0 / float(np.sum(mask))
         return weights
 
-    def get_splits(self):
+    def get_splits_array(self):
         return self.splits_obj.get_splits_array()
 
     def get_feat_split_result(self, bool_feat_id: int):
-        t,v,f,s = self.splits_obj.get_data_on_split_id(bool_feat_id) #['types', 'values', 'feats', 'splits']
-        return t,v,f,s
+        return self.splits_obj.get_data_on_split_id(bool_feat_id)
 
     def get_local_tree(self):
         return self.tree

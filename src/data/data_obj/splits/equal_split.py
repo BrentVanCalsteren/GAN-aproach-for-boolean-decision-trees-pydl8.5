@@ -17,7 +17,7 @@ class EqualSplit(SplitType):
         self.vals, self.feats, self.splits, self.scores = None, None, None, None
         for key in ['values', 'feats', 'splits', 'scores']:
             if key == 'values':
-                self.values = np.array(infos[key][index])
+                self.vals = np.array(infos[key][index])
             elif key == 'feats':
                 self.feats = np.array(infos[key][index])
             elif key == 'splits':
@@ -25,12 +25,19 @@ class EqualSplit(SplitType):
             elif key == 'scores':
                 self.scores = np.array(infos[key][index])
 
+    def evaluate_sample(self, sample):
+        if sample[self.feats] == self.vals:
+            return 'L'
+        return 'R'
+
     def left_interval(self):
-        return [Interval(self.value, self.value, "closed")]
+        feat = int(self.feats)
+        return {  feat: [Interval(self.vals, self.vals, "closed")]}
 
     def right_interval(self):
-        return [Interval(CONFIG.GLOBAL_CHUNK_INFO.processed_feat_min[self.feats], self.value, "half-closed"),
-                Interval(self.value, CONFIG.GLOBAL_CHUNK_INFO.processed_feat_max[self.feats], "half-open")]
+        feat = int(self.feats)
+        return {  feat: [Interval(CONFIG.GLOBAL_CHUNK_INFO.processed_feat_min[self.feats], self.vals, "half-closed"),
+                Interval(self.vals, CONFIG.GLOBAL_CHUNK_INFO.processed_feat_max[self.feats], "half-open")]}
 
 
     def to_string(self) -> str:

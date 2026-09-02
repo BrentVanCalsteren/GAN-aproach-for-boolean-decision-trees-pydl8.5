@@ -27,23 +27,7 @@ class Intervals:
         return len(self.interval_list) == 0
 
     def add_interval(self, startpoint: float, endpoint: float, closureType: str = "closed"):
-        self.add_constraint_union([Interval(startpoint, endpoint, closureType)])
-
-    def add_constraint_union(self, constraint_intervals: Sequence[Interval]):
-        #will intersect a list of union intervals with already present intervals
-        constraints = [iv for iv in constraint_intervals if iv.isvalid_interval]
-        #no valid constraints
-        if not constraints:
-            self.interval_list = []
-            return
-
-        new_list: List[Interval] = []
-        for current in self.interval_list:
-            for constraint in constraints:
-                inter = current.intersect(constraint)
-                if inter is not None:
-                    new_list.append(inter)
-        self.interval_list = merge_intervals(new_list)
+        add_constraint_union(self.interval_list,[Interval(startpoint, endpoint, closureType)])
 
     def get_domain_intervals(self) -> List[Interval]:
         #returns the interval object copy list
@@ -61,6 +45,21 @@ class Intervals:
             if ep_inter is not None: out.append([ep_inter.startpoint, ep_inter.endpoint])
         return out
 
+def add_constraint_union(interval_list, constraint_intervals: Sequence[Interval]):
+    #will intersect a list of union intervals with already present intervals
+    constraints = [iv for iv in constraint_intervals if iv.isvalid_interval]
+    #no valid constraints
+    if not constraints:
+        return []
+
+    new_list: List[Interval] = []
+    for current in interval_list:
+        for constraint in constraints:
+            inter = current.intersect(constraint)
+            if inter is not None:
+                new_list.append(inter)
+    return merge_intervals(new_list)
+
 class Interval:
     #interval types: 'closed' true, true 'open' false, false 'half-open' f, t  'half-closed' t, f
     def __init__(self,startpoint: float,endpoint: float,closure: ClosureInput = "closed"):
@@ -70,6 +69,24 @@ class Interval:
         if isinstance(closure, str): self.left_closed, self.right_closed = self._parse_closure(closure)
         else: self.left_closed, self.right_closed = bool(closure[0]), bool(closure[1])
         self.isvalid_interval = self._validate()
+
+    def __str__(self) -> str:
+        return f"({self.startpoint},{self.endpoint})"
+
+    def __repr__(self) -> str:
+        if not self.isvalid_interval:
+            return "EmptyInterval"
+
+        left = "_[" if self.left_closed else "_("
+        right = "]_" if self.right_closed else ")_"
+        return f"{left}{self.startpoint}, {self.endpoint}{right}"
+
+    def contains_value(self, value: float):
+        if value < self.startpoint or value > self.endpoint: return False
+        return True
+
+    def return_interval_as_list(self):
+        return np.array([self.startpoint, self.endpoint])
 
     @staticmethod
     def _parse_closure(closureType: str) -> Tuple[bool, bool]:
@@ -129,14 +146,6 @@ class Interval:
 
         if s > e: return None
         return Interval(s, e, "closed")
-
-    def __repr__(self) -> str:
-        if not self.isvalid_interval:
-            return "EmptyInterval"
-
-        left = "[" if self.left_closed else "("
-        right = "]" if self.right_closed else ")"
-        return f"{left}{self.startpoint}, {self.endpoint}{right}"
 
 
 def merge_intervals(intervals: Sequence[Interval]) -> List[Interval]:

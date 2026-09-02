@@ -36,21 +36,17 @@ class ClusterCoherenceError:
         self.rng = np.random.default_rng(random_state)
 
     def __call__(self, tids):
-        sub_samples = self.samples[tids]
+        sub_samples = self.samples[list(tids)]
         n_samples = sub_samples.shape[0]
-
         if n_samples < 2:
             return 1e7
 
-        # Pick 1 random sample as the first centroid
         rand_idx = self.rng.integers(0, n_samples)
         c1 = sub_samples[rand_idx]
 
-        # Find the sample furthest away from c1 as the second centroid
         diff1 = sub_samples - c1
-        dist_sq1 = np.einsum('ij,ij->i', diff1, diff1)  # Faster than np.sum(diff1**2, axis=1)
+        dist_sq1 = np.einsum('ij,ij->i', diff1, diff1)
         max_idx = np.argmax(dist_sq1)
-        # Return the Euclidean distance (which equals the weighted distance)
         return float(np.sqrt(dist_sq1[max_idx]))
 
 

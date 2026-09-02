@@ -1,4 +1,5 @@
 import random
+from typing import List
 
 import numpy as np
 from src.samplers.sampler import Sampler
@@ -49,3 +50,12 @@ class SingleGaussian1DSampler(Sampler):
         if len(accepted_samples) >= n_samples:
             return np.array(accepted_samples[:n_samples])
         return self.sorted_samples(n=n_samples) #if cant find candidates
+
+    @classmethod
+    def sample_from_interval(cls, interval, count=1):
+        if isinstance(interval, List):
+            interval = interval[random.randint(0,len(interval)-1)] #select random interval
+        np_list = interval.return_interval_as_list()
+        mean = np_list.mean()
+        std = np.sqrt(np_list.var())
+        return np.random.normal(loc=mean, scale=std, size=count)

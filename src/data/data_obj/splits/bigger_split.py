@@ -23,11 +23,18 @@ class BiggerEqSplit(SplitType):
             elif key == 'scores':
                 self.scores = np.array(infos[key][index])
 
+    def evaluate_sample(self, sample):
+        if sample[self.feats] >= self.vals:
+            return 'L'
+        return 'R'
+
     def left_interval(self):
-        return [Interval(self.vals, CONFIG.GLOBAL_CHUNK_INFO.processed_feat_max[self.feats], "closed")]
+        feat = int(self.feats)
+        return {  feat: [Interval(self.vals, CONFIG.GLOBAL_CHUNK_INFO.processed_feat_max[self.feats], "closed")]}
 
     def right_interval(self):
-        return [Interval(CONFIG.GLOBAL_CHUNK_INFO.processed_feat_min[self.feats], self.vals, "half-closed")]
+        feat = int(self.feats)
+        return {  feat:  [Interval(CONFIG.GLOBAL_CHUNK_INFO.processed_feat_min[self.feats], self.vals, "half-closed")]}
 
     def to_string(self) -> str:
         return f"bigger_eq_{self.threshold}"

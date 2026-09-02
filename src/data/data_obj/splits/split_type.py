@@ -16,6 +16,10 @@ class SplitType(ABC):
         pass
 
     @abstractmethod
+    def evaluate_sample(self, sample):
+        pass
+
+    @abstractmethod
     def map_samples_to_split(self, samples: np.ndarray):
         pass
 

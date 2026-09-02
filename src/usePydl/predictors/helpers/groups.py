@@ -1,6 +1,9 @@
 import random
 import numpy as np
 
+import CONFIG
+
+
 def create_complete_random_feat_groups(n_groups: int, features_each_group: float, total_features: int):
     int_array = list(range(0, total_features))
     random.shuffle(int_array)
@@ -11,10 +14,10 @@ def create_complete_random_feat_groups(n_groups: int, features_each_group: float
     return groups
 
 
-def create_feat_cor_imp_groups(n_groups: int, features_each_group: int,total_features: int, feature_importance: np.ndarray = None, corr_matrix: np.ndarray = None):
+def create_feat_cor_imp_groups(n_groups: int, features_each_group: int,total_features: int):
+    feature_importance = CONFIG.GLOBAL_CHUNK_INFO.feature_importance
 
-    if total_features <= features_each_group:
-        return [list(range(total_features)) for _ in range(n_groups)]
+    if total_features <= features_each_group: return [list(range(total_features)) for _ in range(n_groups)]
 
     k = min(features_each_group, total_features)
 
@@ -35,16 +38,6 @@ def create_feat_cor_imp_groups(n_groups: int, features_each_group: int,total_fea
         least_covered = int(np.argmin(coverage_counter))
         group.append(least_covered)
         coverage_counter[least_covered] += 1
-
-        if corr_matrix is not None and corr_matrix.shape == (total_features, total_features):
-            corrs = np.abs(corr_matrix[least_covered])
-            corrs[least_covered] = -1.0
-            top_corr = np.argsort(corrs)[::-1]
-            for idx in top_corr:
-                if len(group) >= k: break
-                if idx not in group:
-                    group.append(int(idx))
-                    coverage_counter[idx] += 1
 
         while len(group) < k:
             rem_p = p.copy()

@@ -72,7 +72,7 @@ class Samples:
         self.load_chunk(chunk_id)
         labels_flat = np.asarray(self.labels).flatten()
         real_samples = self.samples
-        weights = self.chunk_info.feature_importance
+        weights = CONFIG.GLOBAL_CHUNK_INFO.feature_importance
         gen_labels = []
         for i, sample in enumerate(gen_samples):
             diff = np.abs(real_samples - sample)
